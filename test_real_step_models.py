@@ -98,17 +98,21 @@ def test_step_ingestion():
         print(f"    O'qish va tahlil vaqti:   {parse_time_ms:.2f} ms")
         print(f"    Topilgan Solids:         {solids} ta yaxlit jism (B-Rep Shells)")
         print(f"    Ajratilgan kanoniklar:   {cylinders} ta silindr, {cones} ta konus, {spheres} ta sfera, {torii} ta tor")
-        print(f"    Tekisliklar (Planes):    {planes} ta tekis yuza")
-        print(f"    Erkin shaklli (NURBS):   {nurbs} ta B-Spline sirt")
-        print(f"    Kanonik qismlar nisbati: {((cylinders + cones + spheres + torii) / max(1, cylinders + cones + spheres + torii + nurbs)) * 100:.1f}%")
+        print(f"    Tekisliklar (Planes):    {planes} ta tekis yuza (Bounded Plates)")
+        print(f"    Erkin shaklli (NURBS):   {nurbs} ta B-Spline sirt (Parametric Patches)")
+        print(f"    Jami B-Rep detallar:     {part_count} ta geometrik element")
 
         # Export to .omnicad
         out_omnicad = os.path.join(os.path.dirname(__file__), f"{os.path.splitext(fname)[0]}.omnicad")
         written_bytes = rust.omni_step_export_omnicad(model_ptr, out_omnicad.encode('utf-8'))
 
-        if written_bytes > 0:
+        if written_bytes > 0 and part_count > 0:
             comp_ratio = raw_size / written_bytes
-            print(f"    -> OmniCAD binar hajmi:  {written_bytes / 1024:.2f} KB (Siqilish: {comp_ratio:.1f}x marta kichik!)")
+            mesh_equiv_bytes = part_count * 450 * 36  # ~450 triangles per CAD face
+            print(f"    -> OmniCAD binar hajmi:  {written_bytes / 1024:.2f} KB (STEP ASCII ga nisbatan {comp_ratio:.1f}x ixcham)")
+            print(f"    -> Meshga nisbatan VRAM: ~{mesh_equiv_bytes / written_bytes:.1f}x kamroq GPU xotirasi (0 tessellatsiya)")
+        elif part_count == 0:
+            print("    [!] Ogohlantirish: Geometriya ajratilmadi (0 detal) - siqilish hisoblanmadi!")
 
         rust.omni_step_free(model_ptr)
 

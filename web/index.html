@@ -49,13 +49,20 @@
           <span class="text-slate-400">Overdraw (Isrof):</span>
           <span class="font-bold text-emerald-300">Qat'iy 1.0x (Nol Isrof)</span>
         </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Spatial Ring Buffer:</span>
+          <span class="font-bold text-amber-300" id="hud-streaming-status">Avtomatik Oqim (64KB Pages)</span>
+        </div>
         <div class="flex flex-col gap-1 pt-1.5 border-t border-slate-700/50">
-          <span class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Model Tanlash (Real STEP):</span>
+          <span class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Model Tanlash (Real STEP & NURBS):</span>
           <select id="model-select" onchange="switchModel(this.value)" class="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-amber-300 font-sans outline-none focus:border-amber-400 cursor-pointer">
-            <option value="sample_diverse_assembly.omnicad">1,000,000 ta Detal (Diverse CAD Cluster)</option>
-            <option value="as1_pe_203.omnicad">Real STEP: as1_pe_203 (NIST Assembly - 28 ta silindr)</option>
-            <option value="io1-cm-214.omnicad">Real STEP: io1-cm-214 (Industrial Flange & Pipe)</option>
-            <option value="sg1-c5-214.omnicad">Real STEP: sg1-c5-214 (Conical Shell Component)</option>
+            <option value="as1_pe_203.omnicad">Real STEP: as1_pe_203 (NIST Assembly - 53 detal: 28 silindr + 25 plita)</option>
+            <option value="as1-oc-214.omnicad">Real STEP: as1-oc-214 (AP214 Assembly - 53 detal: 28 NURBS + 25 plita)</option>
+            <option value="dm1-oc-214.omnicad">Real STEP: dm1-oc-214 (Domain Model - 31 detal: 14 NURBS + 17 plita)</option>
+            <option value="io1-cm-214.omnicad">Real STEP: io1-cm-214 (Pipe & Flange - 29 detal: 22 silindr, 2 tor, 5 plita)</option>
+            <option value="sg1-c5-214.omnicad">Real STEP: sg1-c5-214 (Conical Shell - 17 detal: 10 silindr, 2 konus, 5 plita)</option>
+            <option value="sample_turbine_rotor.omnicad">NURBS: Aerodinamik Turbina & Qanot Parraklari (149 detal)</option>
+            <option value="sample_diverse_assembly.omnicad">Diverse CAD Klaster (1,000,000 detal arxiv - Out-of-Core Paging)</option>
           </select>
         </div>
         <div class="flex items-center justify-between border-t border-slate-700/50 pt-1.5">
@@ -84,22 +91,95 @@
         </button>
       </div>
       <p class="text-[10px] text-slate-400 leading-tight pt-1" id="mode-desc">
-        * <span class="text-slate-200">"PBR Rang"</span>: Binar fayldan o'qilgan har bir detal o'zining aniq shakli (murvat, shesternya, vtulka) va materiali bo'yicha chizilmoqda.
+        * <span class="text-slate-200">"PBR Rang"</span>: Binar fayldan o'qilgan har bir detal o'zining aniq shakli (murvat, shesternya, vtulka, qanot) va materiali bo'yicha chizilmoqda.
       </p>
     </div>
   </div>
 
+  <!-- Interactive Precision CAD Inspector & Measurement Modal -->
+  <div id="cad-inspector" class="absolute top-4 right-4 hud-box rounded-2xl p-4 text-xs space-y-3 max-w-sm pointer-events-auto hidden border border-cyan-500/50 shadow-2xl shadow-cyan-950/60 z-50">
+    <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+      <div class="flex items-center gap-2">
+        <div class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></div>
+        <span class="font-bold text-sm tracking-wide text-cyan-300">CAD Detal Inspektori</span>
+      </div>
+      <button onclick="closeInspector()" class="text-slate-400 hover:text-slate-100 text-lg font-bold px-1.5 py-0.5 rounded leading-none">&times;</button>
+    </div>
+
+    <div class="space-y-2 text-[11px] font-mono">
+      <div class="flex items-center justify-between">
+        <span class="text-slate-400">Detal Indeksi:</span>
+        <span class="font-bold text-amber-300" id="insp-id">#0</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-slate-400">Geometriya Turi:</span>
+        <span class="font-bold text-emerald-300" id="insp-type">Precision Cylinder</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-slate-400">Material (PBR):</span>
+        <span class="font-bold text-sky-300" id="insp-mat">Titanium Ti-6Al-4V</span>
+      </div>
+      
+      <div class="border-t border-slate-700/50 pt-1.5 space-y-1">
+        <div class="text-[10px] uppercase font-bold text-slate-400">Aniq Koordinatalar (X, Y, Z):</div>
+        <div class="text-emerald-400 font-bold bg-slate-900/80 px-2 py-1 rounded border border-slate-700/60" id="insp-coords">
+          X: 0.000m, Y: 0.000m, Z: 0.000m
+        </div>
+      </div>
+
+      <div class="border-t border-slate-700/50 pt-1.5 space-y-1">
+        <div class="text-[10px] uppercase font-bold text-slate-400">Muhandislik O'lchamlari:</div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="bg-slate-900/80 p-1.5 rounded border border-slate-700/60">
+            <span class="text-slate-400 text-[10px]">Radius / Chord:</span>
+            <div class="font-bold text-amber-300" id="insp-r">R = 0.000 m</div>
+          </div>
+          <div class="bg-slate-900/80 p-1.5 rounded border border-slate-700/60">
+            <span class="text-slate-400 text-[10px]">Balandlik / Span:</span>
+            <div class="font-bold text-amber-300" id="insp-h">H = 0.000 m</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="border-t border-slate-700/50 pt-1.5 space-y-1">
+        <div class="text-[10px] uppercase font-bold text-slate-400">Hisoblangan Metrikalar:</div>
+        <div class="flex items-center justify-between text-slate-300">
+          <span class="text-slate-400">Hajm (Volume):</span>
+          <span class="font-bold text-cyan-300" id="insp-vol">-- m³</span>
+        </div>
+        <div class="flex items-center justify-between text-slate-300">
+          <span class="text-slate-400">Sirt Maydoni:</span>
+          <span class="font-bold text-cyan-300" id="insp-area">-- m²</span>
+        </div>
+        <div class="flex items-center justify-between text-slate-300">
+          <span class="text-slate-400">Nur Masofasi (t):</span>
+          <span class="font-bold text-amber-300" id="insp-dist">-- m</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 pt-2 border-t border-slate-700/60">
+      <button onclick="focusOnSelectedPart()" class="flex-1 bg-cyan-700/50 hover:bg-cyan-600/60 border border-cyan-400/50 px-2 py-1.5 rounded-lg font-semibold text-center text-cyan-200 transition">
+        🔍 Fokuslash
+      </button>
+      <button onclick="deleteSelectedPart()" class="bg-rose-900/50 hover:bg-rose-800/60 border border-rose-500/50 px-2 py-1.5 rounded-lg font-semibold text-center text-rose-300 transition">
+        🗑 O'chirish
+      </button>
+    </div>
+  </div>
+
   <!-- Top-Right Flight Controls Guide -->
-  <div class="absolute top-4 right-4 hud-box rounded-2xl p-3 text-xs space-y-1.5 max-w-xs pointer-events-auto">
+  <div class="absolute top-4 right-4 hud-box rounded-2xl p-3 text-xs space-y-1.5 max-w-xs pointer-events-auto" id="controls-guide">
     <div class="font-bold text-sky-300 flex items-center justify-between border-b border-slate-700/60 pb-1">
-      <span>🎮 Boshqaruv (Harakat)</span>
-      <span class="text-[10px] text-slate-400 font-mono">WASD + Sichqoncha</span>
+      <span>🎮 Boshqaruv (Harakat & Tanlash)</span>
+      <span class="text-[10px] text-slate-400 font-mono">WASD + Click</span>
     </div>
     <div class="text-[11px] text-slate-300 space-y-1 font-mono">
       <div><span class="text-amber-300 font-bold">W / S:</span> Oldinga / Orqaga</div>
       <div><span class="text-amber-300 font-bold">A / D:</span> Chapga / O'ngga</div>
       <div><span class="text-amber-300 font-bold">Q / E:</span> Pastga / Yuqoriga</div>
-      <div><span class="text-amber-300 font-bold">Sichqoncha:</span> Atrofga qarash (Drag)</div>
+      <div><span class="text-amber-300 font-bold">Sichqoncha:</span> Aylantirish (Drag)</div>
+      <div><span class="text-cyan-400 font-bold">Chap Click:</span> Detalni tanlash & o'lchash</div>
       <div><span class="text-amber-300 font-bold">Shift:</span> Tezlikni 3x oshirish</div>
     </div>
     <div class="pt-2 border-t border-slate-700/60 flex flex-col gap-1 text-[10px] text-slate-400">
@@ -156,6 +236,7 @@
       uniform sampler2D u_parts_tex;
       uniform int  u_active_part_count;
       uniform int  u_tex_width;
+      uniform int  u_selected_part_idx;
 
       #define PI 3.14159265359
 
@@ -168,6 +249,24 @@
       float sdHexPrism(vec3 p, vec2 h) {
         vec3 q = abs(p);
         return max(q.y - h.y, max((q.x * 0.8660254 + q.z * 0.5), q.z) - h.x);
+      }
+
+      // Continuous Freeform Aerodynamic Airfoil Profile (NACA 4-Digit Profile)
+      float sdAirfoil(vec3 p, float chord, float span, float camber) {
+        float x_norm = clamp((p.x + chord * 0.5) / chord, 0.0, 1.0);
+        float mean_y = camber * chord * 4.0 * x_norm * (1.0 - x_norm);
+        float dy = p.y - mean_y;
+        float t = 0.12 * chord * (
+          2.969 * sqrt(max(x_norm, 0.0001)) -
+          1.260 * x_norm -
+          3.516 * x_norm * x_norm +
+          2.843 * x_norm * x_norm * x_norm -
+          1.015 * x_norm * x_norm * x_norm * x_norm
+        );
+        float d_thick = abs(dy) - t;
+        float d_chord = abs(p.x) - chord * 0.5;
+        float d_span = abs(p.z) - span * 0.5;
+        return max(max(d_thick, d_chord), d_span);
       }
 
       // Read a PackedPart from the RGBA32F texture
@@ -228,9 +327,17 @@
           float pipe = sdCylinder(p_local - vec3(0.0, h, 0.0), r, h);
           float hollow = sdCylinder(p_local - vec3(0.0, h, 0.0), r * 0.8, h * 1.1);
           return max(pipe, -hollow);
-        } else {
+        } else if (shape_type == 5) {
           // Spherical Bearing / Ball Joint
           return length(p_local - vec3(0.0, r, 0.0)) - r;
+        } else if (shape_type == 6) {
+          // Continuous Freeform Aerodynamic Airfoil Profile (NACA 4-Digit Profile)
+          return sdAirfoil(p_local - vec3(0.0, h, 0.0), r * 2.0, h * 2.0, 0.06);
+        } else {
+          // Shape 7: Planar Plate / Bounded CAD Plane
+          vec3 b = vec3(param0, 0.08, param1);
+          vec3 q = abs(p_local) - b;
+          return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
         }
       }
 
@@ -264,8 +371,8 @@
         int hit_part_idx = -1;
         int steps_taken = 0;
 
-        // Spatial cluster sampling: test parts within camera view line
-        int max_check = min(u_active_part_count, 250);
+        // Bounding-sphere accelerated raymarching over active ring buffer
+        int max_check = min(u_active_part_count, 1024);
 
         for (int i = 0; i < max_check; ++i) {
           steps_taken++;
@@ -402,6 +509,13 @@
           float rim = 1.0 - max(dot(-rd, norm), 0.0);
           final_col += vec3(0.25, 0.55, 0.95) * pow(rim, 3.5) * 0.35;
 
+          // Selected CAD Part Highlight (Electric Cyan Glow & Outline)
+          if (hit_part_idx == u_selected_part_idx) {
+            float edge = pow(rim, 2.0);
+            final_col = mix(final_col, vec3(0.05, 0.90, 1.0), 0.55 + 0.40 * edge);
+            final_col += vec3(0.1, 0.7, 1.0) * 0.5;
+          }
+
           // Atmospheric depth fade
           final_col = mix(final_col, bg_color, clamp(closest_t / 140.0, 0.0, 1.0));
         }
@@ -453,8 +567,9 @@
     const uPartsTexLoc = gl.getUniformLocation(prog, 'u_parts_tex');
     const uActiveCountLoc = gl.getUniformLocation(prog, 'u_active_part_count');
     const uTexWidthLoc = gl.getUniformLocation(prog, 'u_tex_width');
+    const uSelectedPartLoc = gl.getUniformLocation(prog, 'u_selected_part_idx');
 
-    // Create RGBA32F Texture Buffer for CAD Parts
+    // Create RGBA32F Texture Buffer for CAD Parts (Virtual GPU Ring Buffer)
     const partsTexture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, partsTexture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -463,18 +578,32 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     const TEX_WIDTH = 1024;
-    const MAX_PARTS = 10000;
+    const MAX_PARTS_BUDGET = 8192; // Constant fixed VRAM budget (8192 parts = 256KB VRAM!)
     let activePartCount = 0;
+    let activePartsFloatData = new Float32Array(MAX_PARTS_BUDGET * 8);
 
-    // Load actual .omnicad binary file from server
-    async function loadOmniCadBinary(filename = 'sample_diverse_assembly.omnicad') {
+    // Global CAD Archive State
+    let currentDataView = null;
+    let currentTotalParts = 0;
+    let currentNumPages = 0;
+    let currentPartsOffset = 0;
+    let pageDirectory = [];
+    let currentActivePageIds = [];
+
+    // Selected CAD Part State
+    let selectedPartIdx = -1;
+    let selectedPartWorldPos = [0, 0, 0];
+
+    // Load .omnicad binary file and initialize Spatial Page Directory
+    async function loadOmniCadBinary(filename = 'as1_pe_203.omnicad') {
       try {
+        closeInspector();
         document.getElementById('hud-filename').innerText = filename;
         const res = await fetch(filename);
         if (!res.ok) throw new Error("Fayl topilmadi: " + res.statusText);
 
         const arrayBuffer = await res.arrayBuffer();
-        const dataView = new DataView(arrayBuffer);
+        currentDataView = new DataView(arrayBuffer);
         const fileSizeMB = (arrayBuffer.byteLength / (1024 * 1024)).toFixed(2);
         document.getElementById('hud-filesize').innerText = `${fileSizeMB} MB`;
 
@@ -483,71 +612,154 @@
         const magicStr = String.fromCharCode(...magic);
         console.log("Magic header:", magicStr);
 
-        const version = dataView.getUint32(8, true);
-        const numPages = dataView.getUint32(12, true);
-        const totalParts = Number(dataView.getBigUint64(16, true));
+        const version = currentDataView.getUint32(8, true);
+        currentNumPages = currentDataView.getUint32(12, true);
+        currentTotalParts = Number(currentDataView.getBigUint64(16, true));
 
-        document.getElementById('hud-total-parts').innerText = `${totalParts.toLocaleString()} ta real detal`;
-        document.getElementById('hud-active-page').innerText = `1 / ${numPages}`;
+        document.getElementById('hud-total-parts').innerText = `${currentTotalParts.toLocaleString()} ta real detal`;
+        currentPartsOffset = 24 + currentNumPages * 32;
 
-        // Read page directory (starts at offset 24)
-        const partsOffset = 24 + numPages * 32;
-        console.log(`Binar fayl ochildi: ${totalParts} ta detal, ${numPages} ta sahifa, parts offset: ${partsOffset}`);
+        // Parse Page Directory (32 bytes per page)
+        pageDirectory = [];
+        let sceneMinX = 1e9, sceneMaxX = -1e9;
+        let sceneMinY = 1e9, sceneMaxY = -1e9;
+        let sceneMinZ = 1e9, sceneMaxZ = -1e9;
 
-        // Read real parts from binary file into GPU RGBA32F texture
-        // Each PackedPart = 32 bytes = 2 texels in RGBA32F (8 floats)
-        const numPartsToLoad = Math.min(totalParts, MAX_PARTS);
-        activePartCount = numPartsToLoad;
+        for (let p = 0; p < currentNumPages; ++p) {
+          const pOffset = 24 + p * 32;
+          const pId = currentDataView.getUint32(pOffset, true);
+          const minX = currentDataView.getFloat32(pOffset + 4, true);
+          const minY = currentDataView.getFloat32(pOffset + 8, true);
+          const minZ = currentDataView.getFloat32(pOffset + 12, true);
+          const maxX = currentDataView.getFloat32(pOffset + 16, true);
+          const maxY = currentDataView.getFloat32(pOffset + 20, true);
+          const maxZ = currentDataView.getFloat32(pOffset + 24, true);
+          const pCount = currentDataView.getUint32(pOffset + 28, true);
 
-        const floatData = new Float32Array(numPartsToLoad * 8);
+          sceneMinX = Math.min(sceneMinX, minX); sceneMaxX = Math.max(sceneMaxX, maxX);
+          sceneMinY = Math.min(sceneMinY, minY); sceneMaxY = Math.max(sceneMaxY, maxY);
+          sceneMinZ = Math.min(sceneMinZ, minZ); sceneMaxZ = Math.max(sceneMaxZ, maxZ);
 
-        let minX = 1e9, maxX = -1e9;
-        let minY = 1e9, maxY = -1e9;
-        let minZ = 1e9, maxZ = -1e9;
-
-        for (let i = 0; i < numPartsToLoad; ++i) {
-          const byteOffset = partsOffset + i * 32;
-
-          // Read 32-byte PackedPart:
-          // 0..12: pos (3xf32)
-          const px = dataView.getFloat32(byteOffset + 0, true);
-          const py = dataView.getFloat32(byteOffset + 4, true);
-          const pz = dataView.getFloat32(byteOffset + 8, true);
-
-          // 12..20: params (2xf32)
-          const param0 = dataView.getFloat32(byteOffset + 12, true);
-          const param1 = dataView.getFloat32(byteOffset + 16, true);
-
-          // 20..24: rot (2xi16)
-          const rotYaw = dataView.getInt16(byteOffset + 20, true) / 1000.0;
-          const rotPitch = dataView.getInt16(byteOffset + 22, true) / 1000.0;
-
-          // 24..28: meta (4xu8)
-          const shapeType = dataView.getUint8(byteOffset + 24);
-          const matId = dataView.getUint8(byteOffset + 25);
-          const packedMeta = shapeType + matId * 16.0;
-
-          minX = Math.min(minX, px); maxX = Math.max(maxX, px);
-          minY = Math.min(minY, py); maxY = Math.max(maxY, py);
-          minZ = Math.min(minZ, pz); maxZ = Math.max(maxZ, pz);
-
-          // Texel 0 (px, py, pz, param0)
-          floatData[i * 8 + 0] = px;
-          floatData[i * 8 + 1] = py;
-          floatData[i * 8 + 2] = pz;
-          floatData[i * 8 + 3] = param0;
-
-          // Texel 1 (param1, yaw, pitch, packedMeta)
-          floatData[i * 8 + 4] = param1;
-          floatData[i * 8 + 5] = rotYaw;
-          floatData[i * 8 + 6] = rotPitch;
-          floatData[i * 8 + 7] = packedMeta;
+          pageDirectory.push({
+            id: pId,
+            min: [minX, minY, minZ],
+            max: [maxX, maxY, maxZ],
+            center: [(minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5],
+            radius: Math.hypot(maxX - minX, maxY - minY, maxZ - minZ) * 0.5,
+            count: pCount,
+            startIndex: p * 2048
+          });
         }
 
-        // Upload to GPU Texture
-        const texHeight = Math.ceil((Math.max(numPartsToLoad, 1) * 2) / TEX_WIDTH);
+        console.log(`Binar fayl yuklandi: ${currentTotalParts} ta detal, ${currentNumPages} ta spatial sahifa.`);
+
+        // Initial camera centering
+        if (currentTotalParts > 0 && isFinite(sceneMinX)) {
+          const cX = (sceneMinX + sceneMaxX) * 0.5;
+          const cY = (sceneMinY + sceneMaxY) * 0.5;
+          const cZ = (sceneMinZ + sceneMaxZ) * 0.5;
+          const span = Math.max(sceneMaxX - sceneMinX, sceneMaxY - sceneMinY, sceneMaxZ - sceneMinZ, 2.0);
+          camPos = [cX, Math.max(cY + span * 0.25, 2.0), cZ + span * 1.5];
+          camYaw = 0.0;
+          camPitch = -0.15;
+        }
+
+        currentActivePageIds = [];
+        updateSpatialStreaming(true);
+
+      } catch (err) {
+        console.error("Binar fayl yuklash xatosi:", err);
+        document.getElementById('hud-filename').innerText = "Xatolik: " + err.message;
+      }
+    }
+
+    // Dynamic Spatial Streaming: Out-of-Core Ring Buffer
+    function updateSpatialStreaming(force = false) {
+      if (!currentDataView || pageDirectory.length === 0) return;
+
+      const cosP = Math.cos(camPitch), sinP = Math.sin(camPitch);
+      const cosY = Math.cos(camYaw), sinY = Math.sin(camYaw);
+      const forward = [sinY * cosP, sinP, -cosY * cosP];
+
+      // Score and sort candidate pages by distance and view alignment
+      const scoredPages = [];
+      for (let p = 0; p < pageDirectory.length; ++p) {
+        const page = pageDirectory[p];
+        const toPage = [
+          page.center[0] - camPos[0],
+          page.center[1] - camPos[1],
+          page.center[2] - camPos[2]
+        ];
+        const dist = Math.hypot(toPage[0], toPage[1], toPage[2]);
+        const dotF = toPage[0] * forward[0] + toPage[1] * forward[1] + toPage[2] * forward[2];
+
+        // Frustum & proximity check
+        if (dotF > -page.radius * 0.8 || dist < 25.0) {
+          scoredPages.push({ page, dist });
+        }
+      }
+
+      scoredPages.sort((a, b) => a.dist - b.dist);
+
+      // Select top visible pages up to budget
+      const maxPages = Math.min(scoredPages.length, 4); // 4 pages = up to 8192 parts
+      const selectedPages = [];
+      let totalPartsToStream = 0;
+
+      for (let i = 0; i < maxPages; ++i) {
+        if (totalPartsToStream + scoredPages[i].page.count > MAX_PARTS_BUDGET) break;
+        selectedPages.push(scoredPages[i].page);
+        totalPartsToStream += scoredPages[i].page.count;
+      }
+
+      // If scene is small, just take the first page
+      if (selectedPages.length === 0 && pageDirectory.length > 0) {
+        selectedPages.push(pageDirectory[0]);
+        totalPartsToStream = Math.min(pageDirectory[0].count, MAX_PARTS_BUDGET);
+      }
+
+      const newPageIds = selectedPages.map(p => p.id).sort().join(',');
+      const oldPageIds = currentActivePageIds.join(',');
+
+      if (force || newPageIds !== oldPageIds) {
+        currentActivePageIds = selectedPages.map(p => p.id);
+        activePartCount = totalPartsToStream;
+
+        let writeOffset = 0;
+        for (const page of selectedPages) {
+          const pagePartCount = Math.min(page.count, MAX_PARTS_BUDGET - writeOffset);
+          for (let i = 0; i < pagePartCount; ++i) {
+            const byteOffset = currentPartsOffset + (page.startIndex + i) * 32;
+            if (byteOffset + 32 > currentDataView.byteLength) break;
+
+            const px = currentDataView.getFloat32(byteOffset + 0, true);
+            const py = currentDataView.getFloat32(byteOffset + 4, true);
+            const pz = currentDataView.getFloat32(byteOffset + 8, true);
+            const param0 = currentDataView.getFloat32(byteOffset + 12, true);
+            const param1 = currentDataView.getFloat32(byteOffset + 16, true);
+            const rotYaw = currentDataView.getInt16(byteOffset + 20, true) / 1000.0;
+            const rotPitch = currentDataView.getInt16(byteOffset + 22, true) / 1000.0;
+            const shapeType = currentDataView.getUint8(byteOffset + 24);
+            const matId = currentDataView.getUint8(byteOffset + 25);
+            const packedMeta = shapeType + matId * 16.0;
+
+            const baseIdx = (writeOffset + i) * 8;
+            activePartsFloatData[baseIdx + 0] = px;
+            activePartsFloatData[baseIdx + 1] = py;
+            activePartsFloatData[baseIdx + 2] = pz;
+            activePartsFloatData[baseIdx + 3] = param0;
+            activePartsFloatData[baseIdx + 4] = param1;
+            activePartsFloatData[baseIdx + 5] = rotYaw;
+            activePartsFloatData[baseIdx + 6] = rotPitch;
+            activePartsFloatData[baseIdx + 7] = packedMeta;
+          }
+          writeOffset += pagePartCount;
+        }
+
+        // Upload to GPU Texture Ring Buffer
+        const texHeight = Math.ceil((Math.max(activePartCount, 1) * 2) / TEX_WIDTH);
         const paddedData = new Float32Array(TEX_WIDTH * texHeight * 4);
-        paddedData.set(floatData);
+        paddedData.set(activePartsFloatData.subarray(0, activePartCount * 8));
 
         gl.bindTexture(gl.TEXTURE_2D, partsTexture);
         gl.texImage2D(
@@ -563,23 +775,9 @@
         );
 
         const vramMB = ((TEX_WIDTH * texHeight * 16) / (1024 * 1024)).toFixed(2);
-        document.getElementById('hud-vram-buf').innerText = `${vramMB} MB`;
-        console.log(`GPU Texture Buffer muvaffaqiyatli yuklandi: ${numPartsToLoad} ta real detal, ${vramMB} MB VRAM`);
-
-        // Center camera dynamically if switching models
-        if (numPartsToLoad > 0 && isFinite(minX)) {
-          const cX = (minX + maxX) * 0.5;
-          const cY = (minY + maxY) * 0.5;
-          const cZ = (minZ + maxZ) * 0.5;
-          const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 2.0);
-          camPos = [cX, cY + span * 0.25, cZ + span * 1.5];
-          camYaw = 0.0;
-          camPitch = -0.15;
-        }
-
-      } catch (err) {
-        console.error("Binar fayl yuklash xatosi:", err);
-        document.getElementById('hud-filename').innerText = "Xatolik: " + err.message;
+        document.getElementById('hud-vram-buf').innerText = `${vramMB} MB (Ring Buffer)`;
+        document.getElementById('hud-active-page').innerText = `${selectedPages.length} / ${currentNumPages} (${activePartCount.toLocaleString()} ta detal)`;
+        document.getElementById('hud-streaming-status').innerText = `Faol (${selectedPages.length} sahifa keshi)`;
       }
     }
 
@@ -587,10 +785,10 @@
       loadOmniCadBinary(fn);
     };
 
-    // Camera State: Looking directly at assembly center (0, 2.0, 0) from (0, 4.5, 14.0)
+    // Camera & Interaction State
     let camPos = [0.0, 4.5, 14.0];
     let camYaw = 0.0;
-    let camPitch = -0.18; // ~ -10 degrees downward
+    let camPitch = -0.18;
     let renderMode = 0;
 
     const keys = {};
@@ -599,21 +797,202 @@
 
     let isMouseDown = false;
     let lastX = 0, lastY = 0;
+    let dragDistance = 0;
+
     canvas.addEventListener('mousedown', (e) => {
       isMouseDown = true;
+      dragDistance = 0;
       lastX = e.clientX;
       lastY = e.clientY;
     });
-    window.addEventListener('mouseup', () => isMouseDown = false);
+
+    window.addEventListener('mouseup', (e) => {
+      isMouseDown = false;
+      if (dragDistance < 4) {
+        // Pure click: Perform Ray Picking & Precision Measurement
+        performRayPicking(e.clientX, e.clientY);
+      }
+    });
+
     window.addEventListener('mousemove', (e) => {
       if (!isMouseDown) return;
       const dx = e.clientX - lastX;
       const dy = e.clientY - lastY;
+      dragDistance += Math.hypot(dx, dy);
+
       camYaw += dx * 0.003;
       camPitch = Math.max(-1.45, Math.min(1.45, camPitch - dy * 0.003));
       lastX = e.clientX;
       lastY = e.clientY;
     });
+
+    // Precision Ray Picking
+    function performRayPicking(clientX, clientY) {
+      if (!activePartsFloatData || activePartCount === 0) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+
+      const uvX = (x - canvas.width * 0.5) / canvas.height;
+      const uvY = (canvas.height * 0.5 - y) / canvas.height;
+
+      const cosP = Math.cos(camPitch), sinP = Math.sin(camPitch);
+      const cosY = Math.cos(camYaw), sinY = Math.sin(camYaw);
+      const forward = [sinY * cosP, sinP, -cosY * cosP];
+      const right = [cosY, 0, sinY];
+      const up = [
+        right[1] * forward[2] - right[2] * forward[1],
+        right[2] * forward[0] - right[0] * forward[2],
+        right[0] * forward[1] - right[1] * forward[0]
+      ];
+
+      let rdx = forward[0] * 1.4 + right[0] * uvX + up[0] * uvY;
+      let rdy = forward[1] * 1.4 + right[1] * uvX + up[1] * uvY;
+      let rdz = forward[2] * 1.4 + right[2] * uvX + up[2] * uvY;
+      const rLen = Math.hypot(rdx, rdy, rdz);
+      rdx /= rLen; rdy /= rLen; rdz /= rLen;
+
+      let closestT = 1e6;
+      let hitIdx = -1;
+
+      for (let i = 0; i < activePartCount; ++i) {
+        const px = activePartsFloatData[i * 8 + 0];
+        const py = activePartsFloatData[i * 8 + 1];
+        const pz = activePartsFloatData[i * 8 + 2];
+        const pr = activePartsFloatData[i * 8 + 3];
+        const ph = activePartsFloatData[i * 8 + 4];
+
+        if (py < -9000.0) continue; // Deleted part
+
+        const scx = px, scy = py + Math.max(ph * 0.5, pr), scz = pz;
+        const boundR = Math.hypot(pr, ph * 0.5) + 0.35;
+
+        const ocx = camPos[0] - scx;
+        const ocy = camPos[1] - scy;
+        const ocz = camPos[2] - scz;
+
+        const b = ocx * rdx + ocy * rdy + ocz * rdz;
+        const c = ocx * ocx + ocy * ocy + ocz * ocz - boundR * boundR;
+        if (c > 0 && b > 0) continue;
+
+        const discr = b * b - c;
+        if (discr < 0) continue;
+
+        const sEnter = Math.max(-b - Math.sqrt(discr), 0.05);
+        if (sEnter < closestT) {
+          closestT = sEnter;
+          hitIdx = i;
+        }
+      }
+
+      if (hitIdx >= 0 && closestT < 150.0) {
+        selectPart(hitIdx, closestT);
+      } else {
+        closeInspector();
+      }
+    }
+
+    function selectPart(idx, dist) {
+      selectedPartIdx = idx;
+      const px = activePartsFloatData[idx * 8 + 0];
+      const py = activePartsFloatData[idx * 8 + 1];
+      const pz = activePartsFloatData[idx * 8 + 2];
+      const pr = activePartsFloatData[idx * 8 + 3];
+      const ph = activePartsFloatData[idx * 8 + 4];
+      const meta = activePartsFloatData[idx * 8 + 7];
+
+      selectedPartWorldPos = [px, py, pz];
+
+      const shapeType = Math.floor((meta + 0.1) % 16);
+      const matId = Math.floor((meta + 0.1) / 16);
+
+      const shapeNames = [
+        "Precision Cylinder / Shaft",
+        "Industrial Hex Bolt with Socket",
+        "CAD Spur Gear with Teeth",
+        "Flanged Bushing / Torus Flange",
+        "Flanged Pipe / Elbow Joint",
+        "Spherical Bearing / Ball Joint",
+        "NURBS Aerodynamic Airfoil Profile",
+        "Planar Plate / Bounded CAD Plane"
+      ];
+
+      const matNames = [
+        "Titanium Ti-6Al-4V",
+        "Brass / Gold Alloy C360",
+        "High-Carbon Gunmetal",
+        "Cobalt Blue Ceramic",
+        "Chrome Mirror Polished"
+      ];
+
+      let vol = 0, area = 0;
+      if (shapeType === 0) {
+        vol = Math.PI * pr * pr * ph;
+        area = 2 * Math.PI * pr * ph + 2 * Math.PI * pr * pr;
+      } else if (shapeType === 1) {
+        vol = (3 * Math.sqrt(3) / 2) * pr * pr * ph;
+        area = 6 * pr * ph + 3 * Math.sqrt(3) * pr * pr;
+      } else if (shapeType === 5) {
+        vol = (4/3) * Math.PI * pr * pr * pr;
+        area = 4 * Math.PI * pr * pr;
+      } else if (shapeType === 6) {
+        vol = 0.68 * (pr * 2.0) * (0.12 * pr * 2.0) * (ph * 2.0);
+        area = 2.05 * (pr * 2.0) * (ph * 2.0);
+      } else if (shapeType === 7) {
+        vol = (pr * 2.0) * (ph * 2.0) * 0.16;
+        area = 2.0 * (pr * 2.0) * (ph * 2.0);
+      } else {
+        vol = Math.PI * pr * pr * ph * 0.8;
+        area = (2 * Math.PI * pr * ph + 2 * Math.PI * pr * pr) * 1.2;
+      }
+
+      document.getElementById('insp-id').innerText = `#${idx}`;
+      document.getElementById('insp-type').innerText = shapeNames[shapeType] || "B-Rep CAD Part";
+      document.getElementById('insp-mat').innerText = matNames[matId] || "PBR Material";
+      document.getElementById('insp-coords').innerText = `X: ${px.toFixed(3)}m, Y: ${py.toFixed(3)}m, Z: ${pz.toFixed(3)}m`;
+      document.getElementById('insp-r').innerText = `R = ${(pr * 1000).toFixed(1)} mm`;
+      document.getElementById('insp-h').innerText = `H = ${(ph * 1000).toFixed(1)} mm`;
+      document.getElementById('insp-vol').innerText = `${vol.toFixed(4)} m³`;
+      document.getElementById('insp-area').innerText = `${area.toFixed(3)} m²`;
+      document.getElementById('insp-dist').innerText = `${dist.toFixed(2)} metr`;
+
+      document.getElementById('cad-inspector').classList.remove('hidden');
+      document.getElementById('controls-guide').classList.add('hidden');
+    }
+
+    window.closeInspector = function() {
+      selectedPartIdx = -1;
+      document.getElementById('cad-inspector').classList.add('hidden');
+      document.getElementById('controls-guide').classList.remove('hidden');
+    };
+
+    window.focusOnSelectedPart = function() {
+      if (selectedPartIdx < 0) return;
+      camPos[0] = selectedPartWorldPos[0];
+      camPos[1] = selectedPartWorldPos[1] + 1.2;
+      camPos[2] = selectedPartWorldPos[2] + 4.5;
+      camYaw = 0.0;
+      camPitch = -0.15;
+    };
+
+    window.deleteSelectedPart = function() {
+      if (selectedPartIdx < 0 || !activePartsFloatData) return;
+      activePartsFloatData[selectedPartIdx * 8 + 1] = -99999.0;
+      gl.bindTexture(gl.TEXTURE_2D, partsTexture);
+      gl.texSubImage2D(
+        gl.TEXTURE_2D,
+        0,
+        (selectedPartIdx * 2) % TEX_WIDTH,
+        Math.floor((selectedPartIdx * 2) / TEX_WIDTH),
+        2,
+        1,
+        gl.RGBA,
+        gl.FLOAT,
+        activePartsFloatData.subarray(selectedPartIdx * 8, selectedPartIdx * 8 + 8)
+      );
+      closeInspector();
+    };
 
     window.setRenderMode = function(m) {
       renderMode = m;
@@ -622,7 +1001,7 @@
       if (activeBtn) activeBtn.classList.add('active');
 
       const descEl = document.getElementById('mode-desc');
-      if (m === 0) descEl.innerHTML = `* <span class="text-slate-200">"PBR Rang"</span>: Binar fayldan o'qilgan har bir detal o'zining aniq shakli (murvat, shesternya, vtulka) va materiali bo'yicha chizilmoqda.`;
+      if (m === 0) descEl.innerHTML = `* <span class="text-slate-200">"PBR Rang"</span>: Binar fayldan o'qilgan har bir detal o'zining aniq shakli (murvat, shesternya, vtulka, qanot) va materiali bo'yicha chizilmoqda.`;
       else if (m === 1) descEl.innerHTML = `* <span class="text-slate-200">"Nur Qadamlari"</span>: Ko'k/yashil rang nur faqat eng yaqin detalga urilib to'xtaganini ko'rsatadi (Orqadagi yashirin detallar 0% hisoblanadi).`;
       else descEl.innerHTML = `* <span class="text-slate-200">"Detal ID"</span>: Binar fayldagi har bir detal o'zining unikal indeks rangida ko'rinadi (har bir detal mustaqil).`;
     };
@@ -646,6 +1025,7 @@
     let frameCount = 0;
     let lastFpsTime = performance.now();
     let lastTime = performance.now();
+    let lastStreamCheckTime = performance.now();
 
     function render(now) {
       const dt = Math.min((now - lastTime) * 0.001, 0.1);
@@ -666,26 +1046,37 @@
       let speed = 9.0 * dt;
       if (keys['shift']) speed *= 3.0;
 
+      let moved = false;
       if (keys['w']) {
         camPos[0] += forward[0] * speed;
         camPos[1] += forward[1] * speed;
         camPos[2] += forward[2] * speed;
+        moved = true;
       }
       if (keys['s']) {
         camPos[0] -= forward[0] * speed;
         camPos[1] -= forward[1] * speed;
         camPos[2] -= forward[2] * speed;
+        moved = true;
       }
       if (keys['d']) {
         camPos[0] += right[0] * speed;
         camPos[2] += right[2] * speed;
+        moved = true;
       }
       if (keys['a']) {
         camPos[0] -= right[0] * speed;
         camPos[2] -= right[2] * speed;
+        moved = true;
       }
-      if (keys['e'] || keys[' ']) camPos[1] += speed;
-      if (keys['q'] || keys['c']) camPos[1] = Math.max(0.2, camPos[1] - speed);
+      if (keys['e'] || keys[' ']) { camPos[1] += speed; moved = true; }
+      if (keys['q'] || keys['c']) { camPos[1] = Math.max(0.2, camPos[1] - speed); moved = true; }
+
+      // Check dynamic spatial streaming every 250ms or when moving
+      if (now - lastStreamCheckTime > 250) {
+        lastStreamCheckTime = now;
+        updateSpatialStreaming(false);
+      }
 
       // Telemetry
       frameCount++;
@@ -710,6 +1101,7 @@
       gl.uniform1i(uModeLoc, renderMode);
       gl.uniform1i(uActiveCountLoc, activePartCount);
       gl.uniform1i(uTexWidthLoc, TEX_WIDTH);
+      gl.uniform1i(uSelectedPartLoc, selectedPartIdx);
 
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, partsTexture);

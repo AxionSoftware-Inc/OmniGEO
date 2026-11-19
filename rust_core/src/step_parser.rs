@@ -5,7 +5,7 @@
 //! and Freeform NURBS surfaces, converting them directly into OmniGEO's
 //! ultra-compact 32-byte `PackedPart` format and B-Rep structures.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -368,7 +368,7 @@ impl StepParser {
                     if i < chars.len() {
                         i += 1;
                     }
-                    values.push(StepValue::Enumeration(enum_str));
+                    values.push(StepValue::Enumeration(format!(".{}.", enum_str)));
                 }
                 _ => {
                     // Number, identifier, or '$' (null)
@@ -452,7 +452,298 @@ impl StepParser {
         None
     }
 
-    /// Builds the structured StepModel with classified geometry
+    /// Recursively extracts all entity references from a StepValue
+    fn collect_entity_refs(val: &StepValue, out: &mut Vec<u64>) {
+        match val {
+            StepValue::EntityRef(id) => out.push(*id),
+            StepValue::List(l) => {
+                for item in l {
+                    Self::collect_entity_refs(item, out);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Extracts all boundary Cartesian points for an ADVANCED_FACE
+    fn get_face_boundary_points(
+        &self,
+        face: &RawEntity,
+        vertex_pts: &HashMap<u64, u64>,
+        edge_verts: &HashMap<u64, (u64, u64)>,
+        loop_edges: &HashMap<u64, Vec<u64>>,
+    ) -> Vec<Vec3> {
+        let mut boundary_points = Vec::new();
+        let mut refs = Vec::new();
+        for param in &face.params {
+            Self::collect_entity_refs(param, &mut refs);
+        }
+
+        for &ref_id in &refs {
+            if let Some(edge_ids) = loop_edges.get(&ref_id) {
+                for &e_id in edge_ids {
+                    if let Some(&(v1, v2)) = edge_verts.get(&e_id) {
+                        if let Some(&p1) = vertex_pts.get(&v1) {
+                            if let Some(pt) = self.get_point(p1) {
+                                boundary_points.push(pt);
+                            }
+                        }
+                        if let Some(&p2) = vertex_pts.get(&v2) {
+                            if let Some(pt) = self.get_point(p2) {
+                                boundary_points.push(pt);
+                            }
+                        }
+                    }
+                }
+            } else if let Some(ent) = self.entities.get(&ref_id) {
+                if ent.entity_type == "FACE_BOUND" || ent.entity_type == "FACE_OUTER_BOUND" {
+                    let mut b_refs = Vec::new();
+                    for p in &ent.params {
+                        Self::collect_entity_refs(p, &mut b_refs);
+                    }
+                    for loop_id in b_refs {
+                        if let Some(edge_ids) = loop_edges.get(&loop_id) {
+                            for &e_id in edge_ids {
+                                if let Some(&(v1, v2)) = edge_verts.get(&e_id) {
+                                    if let Some(&p1) = vertex_pts.get(&v1) {
+                                        if let Some(pt) = self.get_point(p1) {
+                                            boundary_points.push(pt);
+                                        }
+                                    }
+                                    if let Some(&p2) = vertex_pts.get(&v2) {
+                                        if let Some(pt) = self.get_point(p2) {
+                                            boundary_points.push(pt);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        boundary_points
+    }
+
+    /// Processes a single surface entity with its exact boundary points
+    fn process_surface(&self, surf: &RawEntity, pts: &[Vec3], model: &mut StepModel) {
+        let ent_type = &surf.entity_type;
+
+        if ent_type == "CYLINDRICAL_SURFACE" {
+            model.stats.cylinders += 1;
+            if surf.params.len() >= 3 {
+                if let (Some(place_id), Some(radius)) = (surf.params[1].as_u64(), surf.params[2].as_f64()) {
+                    let placement = self.get_placement(place_id).unwrap_or(Axis2Placement3D::IDENTITY);
+                    let (center, height) = if !pts.is_empty() {
+                        let mut t_min = f64::MAX;
+                        let mut t_max = f64::MIN;
+                        for p in pts {
+                            let diff = Vec3::new(p.x - placement.location.x, p.y - placement.location.y, p.z - placement.location.z);
+                            let t = diff.dot(placement.axis);
+                            if t < t_min { t_min = t; }
+                            if t > t_max { t_max = t; }
+                        }
+                        let h = (t_max - t_min).abs();
+                        let actual_h = if h > 0.05 { h } else { 2.0 };
+                        let mid_t = (t_min + t_max) * 0.5;
+                        let c = Vec3::new(
+                            placement.location.x + placement.axis.x * mid_t,
+                            placement.location.y + placement.axis.y * mid_t,
+                            placement.location.z + placement.axis.z * mid_t,
+                        );
+                        (c, actual_h)
+                    } else {
+                        (placement.location, 4.0)
+                    };
+
+                    let yaw = placement.axis.x.atan2(placement.axis.z) as f32;
+                    let pitch = placement.axis.y.asin() as f32;
+
+                    let part = PackedPart::new(
+                        center,
+                        radius as f32,
+                        height as f32,
+                        yaw,
+                        pitch,
+                        0, // cylinder
+                        0, // titanium
+                        0,
+                    );
+                    model.update_bounds(center, radius, height);
+                    model.canonical_parts.push(part);
+                }
+            }
+        } else if ent_type == "PLANE" {
+            model.stats.planes += 1;
+            let place_id = surf.params.get(1).and_then(|v| v.as_u64()).unwrap_or(0);
+            let placement = self.get_placement(place_id).unwrap_or(Axis2Placement3D::IDENTITY);
+
+            let (center, half_w, half_l) = if !pts.is_empty() {
+                let mut sum_x = 0.0;
+                let mut sum_y = 0.0;
+                let mut sum_z = 0.0;
+                let mut min_x = f64::MAX; let mut max_x = f64::MIN;
+                let mut min_y = f64::MAX; let mut max_y = f64::MIN;
+                let mut min_z = f64::MAX; let mut max_z = f64::MIN;
+
+                for p in pts {
+                    sum_x += p.x; sum_y += p.y; sum_z += p.z;
+                    if p.x < min_x { min_x = p.x; } if p.x > max_x { max_x = p.x; }
+                    if p.y < min_y { min_y = p.y; } if p.y > max_y { max_y = p.y; }
+                    if p.z < min_z { min_z = p.z; } if p.z > max_z { max_z = p.z; }
+                }
+                let n = pts.len() as f64;
+                let c = Vec3::new(sum_x / n, sum_y / n, sum_z / n);
+                let dx = (max_x - min_x).abs();
+                let dy = (max_y - min_y).abs();
+                let dz = (max_z - min_z).abs();
+
+                let mut dims = [dx as f32 * 0.5, dy as f32 * 0.5, dz as f32 * 0.5];
+                dims.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+                (c, dims[0].max(0.1), dims[1].max(0.1))
+            } else {
+                (placement.location, 1.0, 1.0)
+            };
+
+            let yaw = placement.axis.x.atan2(placement.axis.z) as f32;
+            let pitch = placement.axis.y.asin() as f32;
+
+            let part = PackedPart::new(
+                center,
+                half_w,
+                half_l,
+                yaw,
+                pitch,
+                7, // Shape 7 = Planar Plate / Bounded Plane
+                2, // Carbon gunmetal
+                0,
+            );
+            model.update_bounds(center, half_w as f64, half_l as f64);
+            model.canonical_parts.push(part);
+        } else if ent_type == "CONICAL_SURFACE" {
+            model.stats.cones += 1;
+            if surf.params.len() >= 4 {
+                if let (Some(place_id), Some(radius), Some(semi_angle)) =
+                    (surf.params[1].as_u64(), surf.params[2].as_f64(), surf.params[3].as_f64())
+                {
+                    let placement = self.get_placement(place_id).unwrap_or(Axis2Placement3D::IDENTITY);
+                    let yaw = placement.axis.x.atan2(placement.axis.z) as f32;
+                    let pitch = placement.axis.y.asin() as f32;
+                    let height = if !pts.is_empty() {
+                        let mut min_t = f64::MAX;
+                        let mut max_t = f64::MIN;
+                        for p in pts {
+                            let diff = Vec3::new(p.x - placement.location.x, p.y - placement.location.y, p.z - placement.location.z);
+                            let t = diff.dot(placement.axis);
+                            if t < min_t { min_t = t; }
+                            if t > max_t { max_t = t; }
+                        }
+                        (max_t - min_t).abs().max(0.2)
+                    } else {
+                        (semi_angle * 10.0).max(1.0)
+                    };
+
+                    let part = PackedPart::new(
+                        placement.location,
+                        radius as f32,
+                        height as f32,
+                        yaw,
+                        pitch,
+                        4, // Conical pipe/nozzle
+                        2,
+                        0,
+                    );
+                    model.update_bounds(placement.location, radius, height);
+                    model.canonical_parts.push(part);
+                }
+            }
+        } else if ent_type == "TOROIDAL_SURFACE" {
+            model.stats.torii += 1;
+            if surf.params.len() >= 4 {
+                if let (Some(place_id), Some(major_r), Some(minor_r)) =
+                    (surf.params[1].as_u64(), surf.params[2].as_f64(), surf.params[3].as_f64())
+                {
+                    let placement = self.get_placement(place_id).unwrap_or(Axis2Placement3D::IDENTITY);
+                    let yaw = placement.axis.x.atan2(placement.axis.z) as f32;
+                    let pitch = placement.axis.y.asin() as f32;
+
+                    let part = PackedPart::new(
+                        placement.location,
+                        major_r as f32,
+                        minor_r as f32,
+                        yaw,
+                        pitch,
+                        3, // flanged bushing / toroidal ring
+                        1, // brass/gold material
+                        0,
+                    );
+                    model.update_bounds(placement.location, major_r + minor_r, minor_r * 2.0);
+                    model.canonical_parts.push(part);
+                }
+            }
+        } else if ent_type == "SPHERICAL_SURFACE" {
+            model.stats.spheres += 1;
+            if surf.params.len() >= 3 {
+                if let (Some(place_id), Some(radius)) = (surf.params[1].as_u64(), surf.params[2].as_f64()) {
+                    let placement = self.get_placement(place_id).unwrap_or(Axis2Placement3D::IDENTITY);
+                    let part = PackedPart::new(
+                        placement.location,
+                        radius as f32,
+                        radius as f32,
+                        0.0,
+                        0.0,
+                        5, // spherical ball joint
+                        4, // chrome material
+                        0,
+                    );
+                    model.update_bounds(placement.location, radius, radius);
+                    model.canonical_parts.push(part);
+                }
+            }
+        } else if ent_type.contains("B_SPLINE_SURFACE") {
+            model.stats.nurbs_surfaces += 1;
+            let (center, chord, span) = if !pts.is_empty() {
+                let mut sum_x = 0.0; let mut sum_y = 0.0; let mut sum_z = 0.0;
+                let mut min_x = f64::MAX; let mut max_x = f64::MIN;
+                let mut min_y = f64::MAX; let mut max_y = f64::MIN;
+                let mut min_z = f64::MAX; let mut max_z = f64::MIN;
+
+                for p in pts {
+                    sum_x += p.x; sum_y += p.y; sum_z += p.z;
+                    if p.x < min_x { min_x = p.x; } if p.x > max_x { max_x = p.x; }
+                    if p.y < min_y { min_y = p.y; } if p.y > max_y { max_y = p.y; }
+                    if p.z < min_z { min_z = p.z; } if p.z > max_z { max_z = p.z; }
+                }
+                let n = pts.len() as f64;
+                let c = Vec3::new(sum_x / n, sum_y / n, sum_z / n);
+                let dx = (max_x - min_x).abs();
+                let dy = (max_y - min_y).abs();
+                let dz = (max_z - min_z).abs();
+
+                let mut dims = [dx as f32 * 0.5, dy as f32 * 0.5, dz as f32 * 0.5];
+                dims.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+                (c, dims[0].max(0.2), dims[1].max(0.2))
+            } else {
+                (Vec3::ZERO, 1.0, 1.0)
+            };
+
+            let part = PackedPart::new(
+                center,
+                chord,
+                span,
+                0.0,
+                0.0,
+                6, // Shape 6 = Freeform/Airfoil NURBS surface
+                1, // Brass/Gold
+                0,
+            );
+            model.update_bounds(center, chord as f64, span as f64);
+            model.canonical_parts.push(part);
+        }
+    }
+
+    /// Builds the structured StepModel with full B-Rep topological extraction
     pub fn build_model(&self, file_name: String) -> Result<StepModel, String> {
         let mut model = StepModel {
             file_name,
@@ -460,115 +751,89 @@ impl StepParser {
             ..Default::default()
         };
 
+        // 1. Build topological connectivity maps
+        let mut vertex_pts: HashMap<u64, u64> = HashMap::new();
+        let mut edge_verts: HashMap<u64, (u64, u64)> = HashMap::new();
+        let mut loop_edges: HashMap<u64, Vec<u64>> = HashMap::new();
+
         for ent in self.entities.values() {
             match ent.entity_type.as_str() {
-                "CYLINDRICAL_SURFACE" => {
-                    model.stats.cylinders += 1;
+                "VERTEX_POINT" => {
+                    if ent.params.len() >= 2 {
+                        if let Some(pt_id) = ent.params[1].as_u64() {
+                            vertex_pts.insert(ent.id, pt_id);
+                        }
+                    }
+                }
+                "EDGE_CURVE" => {
                     if ent.params.len() >= 3 {
-                        if let (Some(place_id), Some(radius)) = (ent.params[1].as_u64(), ent.params[2].as_f64()) {
-                            let placement = self.get_placement(place_id).unwrap_or(Axis2Placement3D::IDENTITY);
-                            let height = 4.0; // default estimated bounding height
-
-                            // Compute yaw and pitch from axis vector
-                            let yaw = placement.axis.x.atan2(placement.axis.z) as f32;
-                            let pitch = placement.axis.y.asin() as f32;
-
-                            let part = PackedPart::new(
-                                placement.location,
-                                radius as f32,
-                                height,
-                                yaw,
-                                pitch,
-                                0, // shape_type 0: precision cylinder
-                                0, // titanium material
-                                0,
-                            );
-
-                            model.update_bounds(placement.location, radius, height as f64);
-                            model.canonical_parts.push(part);
+                        if let (Some(v1), Some(v2)) = (ent.params[1].as_u64(), ent.params[2].as_u64()) {
+                            edge_verts.insert(ent.id, (v1, v2));
                         }
                     }
                 }
-                "CONICAL_SURFACE" => {
-                    model.stats.cones += 1;
-                    if ent.params.len() >= 4 {
-                        if let (Some(place_id), Some(radius), Some(semi_angle)) =
-                            (ent.params[1].as_u64(), ent.params[2].as_f64(), ent.params[3].as_f64())
-                        {
-                            let placement = self.get_placement(place_id).unwrap_or(Axis2Placement3D::IDENTITY);
-                            let yaw = placement.axis.x.atan2(placement.axis.z) as f32;
-                            let pitch = placement.axis.y.asin() as f32;
-
-                            let part = PackedPart::new(
-                                placement.location,
-                                radius as f32,
-                                (semi_angle * 10.0) as f32,
-                                yaw,
-                                pitch,
-                                4, // shape_type 4: conical pipe/nozzle
-                                2, // gunmetal material
-                                0,
-                            );
-                            model.update_bounds(placement.location, radius, 3.0);
-                            model.canonical_parts.push(part);
+                "EDGE_LOOP" => {
+                    let mut edges = Vec::new();
+                    let mut refs = Vec::new();
+                    for param in &ent.params {
+                        Self::collect_entity_refs(param, &mut refs);
+                    }
+                    for r in refs {
+                        if let Some(oe) = self.entities.get(&r) {
+                            if oe.entity_type == "ORIENTED_EDGE" {
+                                for p in &oe.params {
+                                    if let Some(eid) = p.as_u64() {
+                                        if edge_verts.contains_key(&eid) {
+                                            edges.push(eid);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                }
-                "SPHERICAL_SURFACE" => {
-                    model.stats.spheres += 1;
-                    if ent.params.len() >= 3 {
-                        if let (Some(place_id), Some(radius)) = (ent.params[1].as_u64(), ent.params[2].as_f64()) {
-                            let placement = self.get_placement(place_id).unwrap_or(Axis2Placement3D::IDENTITY);
-                            let part = PackedPart::new(
-                                placement.location,
-                                radius as f32,
-                                radius as f32,
-                                0.0,
-                                0.0,
-                                5, // shape_type 5: spherical ball joint
-                                4, // chrome material
-                                0,
-                            );
-                            model.update_bounds(placement.location, radius, radius);
-                            model.canonical_parts.push(part);
-                        }
-                    }
-                }
-                "TOROIDAL_SURFACE" => {
-                    model.stats.torii += 1;
-                    if ent.params.len() >= 4 {
-                        if let (Some(place_id), Some(major_r), Some(minor_r)) =
-                            (ent.params[1].as_u64(), ent.params[2].as_f64(), ent.params[3].as_f64())
-                        {
-                            let placement = self.get_placement(place_id).unwrap_or(Axis2Placement3D::IDENTITY);
-                            let yaw = placement.axis.x.atan2(placement.axis.z) as f32;
-                            let pitch = placement.axis.y.asin() as f32;
-
-                            let part = PackedPart::new(
-                                placement.location,
-                                major_r as f32,
-                                minor_r as f32,
-                                yaw,
-                                pitch,
-                                3, // flanged bushing / toroidal ring
-                                1, // brass/gold material
-                                0,
-                            );
-                            model.update_bounds(placement.location, major_r + minor_r, minor_r * 2.0);
-                            model.canonical_parts.push(part);
-                        }
-                    }
-                }
-                "PLANE" => {
-                    model.stats.planes += 1;
-                }
-                "MANIFOLD_SOLID_BREP" => {
-                    model.stats.solids += 1;
-                }
-                s if s.contains("B_SPLINE_SURFACE") => {
-                    model.stats.nurbs_surfaces += 1;
+                    loop_edges.insert(ent.id, edges);
                 }
                 _ => {}
+            }
+        }
+
+        let mut processed_surfaces: HashSet<u64> = HashSet::new();
+
+        // 2. Process ADVANCED_FACE entities with boundary loops
+        for ent in self.entities.values() {
+            if ent.entity_type == "ADVANCED_FACE" {
+                let mut refs = Vec::new();
+                for p in &ent.params {
+                    Self::collect_entity_refs(p, &mut refs);
+                }
+
+                // Find surface entity
+                let surf_id = refs.iter().cloned().find(|id| {
+                    if let Some(se) = self.entities.get(id) {
+                        se.entity_type.contains("SURFACE") || se.entity_type == "PLANE"
+                    } else {
+                        false
+                    }
+                });
+
+                if let Some(sid) = surf_id {
+                    processed_surfaces.insert(sid);
+                    let pts = self.get_face_boundary_points(ent, &vertex_pts, &edge_verts, &loop_edges);
+                    if let Some(surf_ent) = self.entities.get(&sid) {
+                        self.process_surface(surf_ent, &pts, &mut model);
+                    }
+                }
+            } else if ent.entity_type == "MANIFOLD_SOLID_BREP" {
+                model.stats.solids += 1;
+            }
+        }
+
+        // 3. Fallback: Process standalone surfaces not referenced by ADVANCED_FACE
+        for ent in self.entities.values() {
+            if !processed_surfaces.contains(&ent.id) {
+                if ent.entity_type.contains("SURFACE") || ent.entity_type == "PLANE" {
+                    self.process_surface(ent, &[], &mut model);
+                }
             }
         }
 
