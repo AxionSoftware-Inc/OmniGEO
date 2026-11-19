@@ -2,11 +2,13 @@ pub mod frame_pacer;
 pub mod brep;
 pub mod ray_brep;
 pub mod assembly_bvh;
+pub mod binary_format;
 
 pub use frame_pacer::{FrameLimit, FramePacer};
 pub use brep::{BoundingBox3D, BrepFace, SurfaceGeometry, Vec3};
 pub use ray_brep::{AnalyticIntersector, Ray3D, RayHit};
 pub use assembly_bvh::{AssemblyBvh, BvhNode};
+pub use binary_format::{OmniCadArchive, PackedPart, SpatialPage};
 
 // =========================================================================
 // C ABI / FFI Export for Python, C++, and Host Bindings

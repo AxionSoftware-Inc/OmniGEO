@@ -65,4 +65,7 @@ web/user_scene_clean.glb
 web/user_scene_fast.glb
 web/S_1_LP.glb
 web/unreal_arch_scene.glb
+*.omnicad
+sample_diverse_assembly.omnicad
+sample_campus.omni
 
