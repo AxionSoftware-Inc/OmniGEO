@@ -154,9 +154,6 @@
         <button onclick="loadScenePreset('s1_lp')" class="preset-btn bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition" id="btn-p-s1lp">
           🛋️ Blender S_1_LP
         </button>
-        <button onclick="loadScenePreset('billion_tris')" class="preset-btn bg-slate-800 text-rose-300 border border-slate-700 hover:border-rose-500/50 hover:bg-rose-950/30 text-xs font-semibold px-3 py-1.5 rounded-lg transition" id="btn-p-billion">
-          ⚔️ 1 MILLIARD Uchburchak (Filament vs OmniGeo)
-        </button>
       </div>
 
       <!-- FPS Pacer Controls -->
@@ -516,26 +513,6 @@
         updateHud("500k Nanite Kavisli Mesh", activeTris, "Kavisli Yuzalar • 0 Oddiy Quti", "1 Batched Draw Call");
         controls.target.set(0, 5, 0);
         camera.position.set(20, 14, 22);
-      } else if (type === 'billion_tris') {
-        const btn = document.getElementById('btn-p-billion');
-        if (btn) btn.classList.add('active', 'bg-rose-500/20', 'text-rose-300', 'border-rose-400');
-        
-        // 1 BILLION Triangles Nanite DAG Matrix (2,000 instanced clusters of 500k meshlets)
-        const ultra = generate500kUltraMesh();
-        const instGroup = new THREE.Group();
-        for (let ix = -3; ix <= 3; ix += 2) {
-          for (let iz = -3; iz <= 3; iz += 2) {
-            const cl = ultra.clone();
-            cl.position.set(ix * 35.0, 0, iz * 35.0);
-            instGroup.add(cl);
-          }
-        }
-        currentModelGroup.add(instGroup);
-        scene.add(currentModelGroup);
-        activeTris = 1000000000;
-        updateHud("1 MILLIARD Uchburchak (OmniGeo vs Filament)", activeTris, "Filament: 💥 CRASH (37GB OOM) | OmniGeo: 680 FPS (48.5MB)", "1 Indirect Draw Call");
-        controls.target.set(0, 8, 0);
-        camera.position.set(85, 55, 95);
       }
     };
 

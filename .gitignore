@@ -50,8 +50,19 @@ rust_core/target/
 .DS_Store
 Thumbs.db
 
-# Raw 3D downloads
-models/Interior Luz*/
-models/*.rar
-models/*.zip
+# Raw 3D downloads and heavy assets
+models/
+*.glb
+*.gltf
+*.blend
+*.blend1
+*.bin
+*.obj
+*.mtl
+*.rar
+*.zip
+web/user_scene_clean.glb
+web/user_scene_fast.glb
+web/S_1_LP.glb
+web/unreal_arch_scene.glb
 
