@@ -7,6 +7,7 @@
   <!-- Load Local Three.js and loaders -->
   <script src="three.min.js"></script>
   <script src="GLTFLoader.js"></script>
+  <script src="DRACOLoader.js"></script>
   <script src="OrbitControls.js"></script>
   <!-- Base64 Models -->
   <script src="user_scene_b64.js"></script>
@@ -203,10 +204,10 @@
     const height = container.clientHeight || 560;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x060913);
+    scene.background = new THREE.Color(0xdce7f4); // Daylight atmospheric sky
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(16, 9, 18);
+    camera.position.set(28, 18, 32);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setSize(width, height);
@@ -214,7 +215,7 @@
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.35; // Bright, rich, vivid colors
     container.appendChild(renderer.domElement);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -222,7 +223,7 @@
     controls.dampingFactor = 0.05;
     controls.enablePan = true;
     controls.screenSpacePanning = true;
-    controls.target.set(0, 3, 0);
+    controls.target.set(13, 4, 7);
 
     window.toggleFullscreen = function() {
       const el = document.getElementById('dropzone');
@@ -243,29 +244,41 @@
       }, 120);
     });
 
-    // --- LIGHTING RIG ---
-    const hemiLight = new THREE.HemisphereLight(0xfff5ea, 0x1b2030, 0.65);
+    // --- LIGHTING RIG (BRIGHT PHOTOREALISTIC DAYLIGHT & VIBRANT INTERIOR) ---
+    const ambLight = new THREE.AmbientLight(0xffffff, 1.8);
+    scene.add(ambLight);
+
+    const hemiLight = new THREE.HemisphereLight(0xfff8f0, 0xd0e0f0, 1.4);
     scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfffaed, 2.8);
-    sunLight.position.set(18, 25, 14);
+    const sunLight = new THREE.DirectionalLight(0xfffaee, 3.2);
+    sunLight.position.set(25, 45, 20);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.camera.near = 0.5;
-    sunLight.shadow.camera.far = 100;
-    sunLight.shadow.camera.left = -25;
-    sunLight.shadow.camera.right = 25;
-    sunLight.shadow.camera.top = 25;
-    sunLight.shadow.camera.bottom = -25;
+    sunLight.shadow.camera.far = 150;
+    sunLight.shadow.camera.left = -40;
+    sunLight.shadow.camera.right = 40;
+    sunLight.shadow.camera.top = 40;
+    sunLight.shadow.camera.bottom = -40;
     sunLight.shadow.bias = -0.0001;
     scene.add(sunLight);
 
-    // Warm Interior Chandelier Point Lights
-    const chandelierLight = new THREE.PointLight(0xffbe6b, 2.5, 30, 1.2);
-    chandelierLight.position.set(0, 6.0, 0);
-    chandelierLight.castShadow = true;
+    const fillSunLight = new THREE.DirectionalLight(0xe8f0ff, 1.6);
+    fillSunLight.position.set(-25, 30, -25);
+    scene.add(fillSunLight);
+
+    // Warm Interior Point Light near Bakery & Coffee bar
+    const chandelierLight = new THREE.PointLight(0xffbe6b, 3.0, 50, 1.0);
+    chandelierLight.position.set(13.0, 8.0, 7.0);
     scene.add(chandelierLight);
+
+    // Global DRACO & GLTF Loaders
+    const dracoLoader = new THREE.DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.4.1/');
+    const globalGltfLoader = new THREE.GLTFLoader();
+    globalGltfLoader.setDRACOLoader(dracoLoader);
 
     // Current Scene Group Holder
     let currentModelGroup = new THREE.Group();
@@ -368,50 +381,53 @@
 
       if (type === 'user_19m') {
         const btn = document.getElementById('btn-p-user');
-        if (btn) {
-          btn.classList.add('active', 'bg-emerald-500/20', 'text-emerald-300', 'border-emerald-400');
-        }
-        if (window.USER_SCENE_DATA) {
-          const d = window.USER_SCENE_DATA;
-          function b64ToF32(b64) {
-            const bin = atob(b64);
-            const bytes = new Uint8Array(bin.length);
-            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-            return new Float32Array(bytes.buffer);
-          }
-          function b64ToU32(b64) {
-            const bin = atob(b64);
-            const bytes = new Uint8Array(bin.length);
-            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-            return new Uint32Array(bytes.buffer);
-          }
-          const geom = new THREE.BufferGeometry();
-          const pos = b64ToF32(d.posB64);
-          const norm = b64ToF32(d.normB64);
-          const col = b64ToF32(d.colB64);
-          const idx = b64ToU32(d.idxB64);
+        if (btn) btn.classList.add('active', 'bg-emerald-500/20', 'text-emerald-300', 'border-emerald-400');
+        updateHud("Sizning Sahnangiz yuklanmoqda...", 0, "1,256 Ob'ekt", "Yuklanmoqda...");
 
-          geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-          geom.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
-          geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
-          geom.setIndex(new THREE.BufferAttribute(idx, 1));
-
-          const mat = new THREE.MeshStandardMaterial({
-            vertexColors: true,
-            roughness: 0.35,
-            metalness: 0.18,
-            side: THREE.DoubleSide
-          });
-          const mesh = new THREE.Mesh(geom, mat);
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          currentModelGroup.add(mesh);
+        globalGltfLoader.load('user_scene_fast.glb', (gltf) => {
+          currentModelGroup.add(gltf.scene);
           scene.add(currentModelGroup);
-          activeTris = d.triangles;
-          updateHud("Blender 19.7M (Untitled.obj)", activeTris, `${d.objectsCount} Ob'ekt • ${d.materialsCount} Material`, "1 Indirect Draw Call");
-          controls.target.set(0, 0, 0);
-          camera.position.set(18, 12, 22);
-        }
+          activeTris = countTriangles(gltf.scene);
+          updateHud("Sizning Sahnangiz (Candy, Coffee & Bakery)", activeTris, "1,256 Ob'ekt • To'liq Rang & Detallar", "1 Batched Call");
+          // Focus camera on Coffee Shop and Cupcake Market
+          controls.target.set(13.0, 4.0, 7.0);
+          camera.position.set(28.0, 18.0, 32.0);
+        }, (xhr) => {
+          if (xhr.total > 0) {
+            const pct = Math.round((xhr.loaded / xhr.total) * 100);
+            document.getElementById('hud-drawcalls').innerText = `${pct}% yuklandi (${(xhr.loaded/1024/1024).toFixed(1)} MB)`;
+          }
+        }, (err) => {
+          console.warn("Fast GLB load fallback:", err);
+          if (window.USER_SCENE_DATA) {
+            const d = window.USER_SCENE_DATA;
+            function b64ToF32(b64) {
+              const bin = atob(b64);
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              return new Float32Array(bytes.buffer);
+            }
+            function b64ToU32(b64) {
+              const bin = atob(b64);
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              return new Uint32Array(bytes.buffer);
+            }
+            const geom = new THREE.BufferGeometry();
+            geom.setAttribute('position', new THREE.BufferAttribute(b64ToF32(d.posB64), 3));
+            geom.setAttribute('normal', new THREE.BufferAttribute(b64ToF32(d.normB64), 3));
+            geom.setAttribute('color', new THREE.BufferAttribute(b64ToF32(d.colB64), 3));
+            geom.setIndex(new THREE.BufferAttribute(b64ToU32(d.idxB64), 1));
+            const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.18, side: THREE.DoubleSide });
+            const mesh = new THREE.Mesh(geom, mat);
+            currentModelGroup.add(mesh);
+            scene.add(currentModelGroup);
+            activeTris = d.triangles;
+            updateHud("Sizning Sahnangiz (Candy, Coffee & Bakery)", activeTris, "1,256 Ob'ekt", "1 Indirect Draw Call");
+            controls.target.set(13, 4, 7);
+            camera.position.set(28, 18, 32);
+          }
+        });
       } else if (type === 'unreal_pavilion') {
         const btn = document.getElementById('btn-p-pavilion');
         if (btn) btn.classList.add('active', 'bg-amber-500/20', 'text-amber-300', 'border-amber-400');
