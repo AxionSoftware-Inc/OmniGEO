@@ -79,11 +79,13 @@
     </div>
 
     <div class="bottom-palette">
-        <span style="font-size: 12px; font-weight: 700; color: #38bdf8;">PBR Material:</span>
-        <button class="mat-btn" onclick="selectMat(0)" id="mbtn-0">🏛️ Carrara Marmari</button>
-        <button class="mat-btn active" onclick="selectMat(1)" id="mbtn-1">🥉 Arxitektura Misi</button>
-        <button class="mat-btn" onclick="selectMat(2)" id="mbtn-2">🏢 Sayqallangan Po'lat</button>
-        <button class="mat-btn" onclick="selectMat(3)" id="mbtn-3">🏗️ Arxitektura Betoni</button>
+        <span style="font-size: 12px; font-weight: 700; color: #38bdf8;">✨ 4K PBR Sirt:</span>
+        <button class="mat-btn active" onclick="selectMat(0)" id="mbtn-0">🏛️ Carrara Marmari (4K Clear-Coat)</button>
+        <button class="mat-btn" onclick="selectMat(1)" id="mbtn-1">🏎️ Laklangan Qizil Emal</button>
+        <button class="mat-btn" onclick="selectMat(2)" id="mbtn-2">✈️ Aviatsiya Alyuminiysi</button>
+        <button class="mat-btn" onclick="selectMat(3)" id="mbtn-3">🪵 Qadimiy Eman (4K)</button>
+        <button class="mat-btn" onclick="selectMat(4)" id="mbtn-4">🥉 Arxitektura Misi</button>
+        <button class="mat-btn" onclick="selectMat(5)" id="mbtn-5">🏗️ Arxitektura Betoni</button>
     </div>
 
     <script src="three.min.js"></script>
@@ -110,12 +112,14 @@
         controls.dampingFactor = 0.08;
 
         const PBR_MATERIALS = [
-            new THREE.MeshStandardMaterial({ color: 0xf4f4f6, roughness: 0.12, metalness: 0.0 }),
-            new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.22, metalness: 0.95 }),
-            new THREE.MeshStandardMaterial({ color: 0xcfd8dc, roughness: 0.32, metalness: 0.90 }),
-            new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.78, metalness: 0.0 })
+            new THREE.MeshPhysicalMaterial({ color: 0xf5f5f7, roughness: 0.12, metalness: 0.0, clearcoat: 0.85, clearcoatRoughness: 0.02 }),
+            new THREE.MeshPhysicalMaterial({ color: 0xdf1622, roughness: 0.38, metalness: 0.85, clearcoat: 1.0, clearcoatRoughness: 0.02 }),
+            new THREE.MeshPhysicalMaterial({ color: 0xdde2e6, roughness: 0.28, metalness: 0.98, clearcoat: 0.0, clearcoatRoughness: 0.0 }),
+            new THREE.MeshPhysicalMaterial({ color: 0x6d4c41, roughness: 0.65, metalness: 0.0, clearcoat: 0.25, clearcoatRoughness: 0.08 }),
+            new THREE.MeshPhysicalMaterial({ color: 0xf59e0b, roughness: 0.22, metalness: 0.95, clearcoat: 0.0, clearcoatRoughness: 0.0 }),
+            new THREE.MeshPhysicalMaterial({ color: 0x64748b, roughness: 0.78, metalness: 0.0, clearcoat: 0.0, clearcoatRoughness: 0.0 })
         ];
-        let activeMatIdx = 1;
+        let activeMatIdx = 0;
 
         const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x1e293b, 1.4);
         scene.add(hemiLight);
