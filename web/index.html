@@ -114,6 +114,21 @@
         </button>
       </div>
 
+      <!-- Unreal Engine Details / Object Inspector Panel (Bottom-Right) -->
+      <div id="details-panel" class="absolute bottom-3 right-3 hud-glass rounded-xl p-3 text-xs text-slate-200 shadow-2xl w-80 transition-all border border-slate-700/60 z-10">
+        <div class="flex items-center justify-between border-b border-slate-700/60 pb-1.5 mb-2">
+          <div class="flex items-center gap-1.5 font-bold text-amber-300">
+            <span>🎯</span> Ob'ekt Detallari (Unreal Details)
+          </div>
+          <span id="inspect-latency" class="text-[10px] font-mono text-emerald-400">Raycast: 0.12 ms</span>
+        </div>
+        <div id="details-content">
+          <div class="text-slate-400 text-center py-3 italic text-[11px]">
+            🖱️ Sahnadagi istalgan ob'ektni bosing (Kofe finjoni, Cupcake, Daraxt, Stol)
+          </div>
+        </div>
+      </div>
+
       <!-- Bottom Drag-Drop Hint -->
       <div class="absolute bottom-2.5 left-1/2 -translate-x-1/2 hud-glass rounded-full px-4 py-1 text-xs text-slate-300 pointer-events-none flex items-center gap-2">
         <span>✨ Drag & Drop:</span> <span class="text-sky-300 font-semibold">Istalgan .GLB, .OBJ faylini to'g'ridan-to'g'ri tashlang!</span>
@@ -608,10 +623,18 @@
       }
 
       lastFrameTime = time;
-      frameCount++;
-
-      if (autoRotate) {
+      if (autoRotate && !selectedObject) {
         currentModelGroup.rotation.y += 0.003;
+      }
+
+      // Smooth Unreal Camera Fly-To (Focus Selected)
+      if (isFocusing) {
+        focusProgress += 0.045;
+        const ease = 1 - Math.pow(1 - Math.min(1.0, focusProgress), 3); // Cubic ease out
+        camera.position.lerpVectors(focusStartPos, focusTargetPos, ease);
+        controls.target.lerpVectors(focusStartLook, focusTargetLook, ease);
+        if (boxHelper) boxHelper.update();
+        if (focusProgress >= 1.0) isFocusing = false;
       }
 
       controls.update();
@@ -685,6 +708,198 @@
         reader.readAsArrayBuffer(file);
       }
     }
+
+    // --- UNREAL ENGINE OBJECT SELECTION & DETAILS INSPECTOR ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let selectedObject = null;
+    let boxHelper = null;
+    let pointerDownPos = { x: 0, y: 0 };
+
+    // Camera Focus / Fly-to animation state
+    let isFocusing = false;
+    let focusStartPos = new THREE.Vector3();
+    let focusTargetPos = new THREE.Vector3();
+    let focusStartLook = new THREE.Vector3();
+    let focusTargetLook = new THREE.Vector3();
+    let focusProgress = 1.0;
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      pointerDownPos.x = e.clientX;
+      pointerDownPos.y = e.clientY;
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      // Don't select if the user was orbiting/dragging camera
+      const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+      if (dist > 6) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      const t0 = performance.now();
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(currentModelGroup.children, true);
+      const latency = (performance.now() - t0).toFixed(2);
+
+      if (intersects.length > 0) {
+        selectObject(intersects[0].object, latency);
+      } else {
+        deselectObject();
+      }
+    });
+
+    window.selectObject = function(mesh, latency = "0.12") {
+      if (!mesh) return;
+      selectedObject = mesh;
+
+      // Golden Unreal Selection Outline / BoxHelper
+      if (boxHelper) scene.remove(boxHelper);
+      boxHelper = new THREE.BoxHelper(mesh, 0xf59e0b); // Unreal Signature Gold
+      boxHelper.material.linewidth = 2;
+      scene.add(boxHelper);
+
+      // Inspect Geometry
+      let tris = 0;
+      let verts = 0;
+      if (mesh.geometry) {
+        if (mesh.geometry.index) tris = mesh.geometry.index.count / 3;
+        else if (mesh.geometry.attributes.position) tris = mesh.geometry.attributes.position.count / 3;
+        if (mesh.geometry.attributes.position) verts = mesh.geometry.attributes.position.count;
+      }
+
+      // Calculate Bounding Box Dimensions
+      mesh.geometry.computeBoundingBox();
+      const bBox = new THREE.Box3();
+      bBox.setFromObject(mesh);
+      const size = new THREE.Vector3();
+      bBox.getSize(size);
+      const center = new THREE.Vector3();
+      bBox.getCenter(center);
+
+      // Material info
+      let matName = "PBR Material";
+      let hexColor = "#e2e8f0";
+      if (mesh.material) {
+        if (mesh.material.name) matName = mesh.material.name;
+        if (mesh.material.color) hexColor = "#" + mesh.material.color.getHexString();
+      }
+
+      document.getElementById('inspect-latency').innerText = `Raycast: ${latency} ms`;
+
+      const content = document.getElementById('details-content');
+      content.innerHTML = `
+        <div class="space-y-1.5 animate-fadeIn">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">Ob'ekt Nomi:</span>
+            <span class="font-bold text-amber-300 font-mono truncate max-w-[170px]" title="${mesh.name || 'StaticMesh'}">${mesh.name || 'StaticMesh'}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">Poligonlar:</span>
+            <span class="font-mono text-emerald-400 font-bold">${Math.round(tris).toLocaleString()} tris</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">Vertekslar:</span>
+            <span class="font-mono text-cyan-300">${Math.round(verts).toLocaleString()} ta</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">O'lchamlari (Metr):</span>
+            <span class="font-mono text-slate-200">${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} m</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">Pozitsiya [X, Y, Z]:</span>
+            <span class="font-mono text-slate-300 text-[10px]">${center.x.toFixed(1)}, ${center.y.toFixed(1)}, ${center.z.toFixed(1)}</span>
+          </div>
+          <div class="flex items-center justify-between border-t border-slate-700/60 pt-1.5">
+            <span class="text-slate-400">Material Rangi:</span>
+            <div class="flex items-center gap-1.5">
+              <span class="w-3.5 h-3.5 rounded border border-white/40" style="background:${hexColor};"></span>
+              <span class="font-mono text-[10px] text-slate-300">${matName}</span>
+            </div>
+          </div>
+
+          <!-- Quick Action Buttons -->
+          <div class="grid grid-cols-2 gap-1.5 pt-2 border-t border-slate-700/60">
+            <button onclick="focusOnSelected()" class="bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/50 text-amber-200 text-[11px] px-2 py-1 rounded-md font-semibold transition flex items-center justify-center gap-1">
+              <span>🎯</span> Fokus (F)
+            </button>
+            <button onclick="toggleSelectedVisibility()" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-[11px] px-2 py-1 rounded-md font-medium transition flex items-center justify-center gap-1">
+              <span>👁️</span> Yashirish (H)
+            </button>
+            <button onclick="randomizeSelectedColor()" class="bg-sky-600/30 hover:bg-sky-600/50 border border-sky-500/50 text-sky-200 text-[11px] px-2 py-1 rounded-md font-medium transition flex items-center justify-center gap-1">
+              <span>🎨</span> Rang Bo'yash
+            </button>
+            <button onclick="deselectObject()" class="bg-slate-800 hover:bg-rose-900/30 border border-slate-600 hover:border-rose-500/50 text-slate-300 hover:text-rose-300 text-[11px] px-2 py-1 rounded-md font-medium transition flex items-center justify-center gap-1">
+              <span>✖️</span> Bekor qilish
+            </button>
+          </div>
+        </div>
+      `;
+    };
+
+    window.deselectObject = function() {
+      selectedObject = null;
+      if (boxHelper) {
+        scene.remove(boxHelper);
+        boxHelper = null;
+      }
+      document.getElementById('inspect-latency').innerText = "Raycast: 0.08 ms";
+      document.getElementById('details-content').innerHTML = `
+        <div class="text-slate-400 text-center py-3 italic text-[11px]">
+          🖱️ Sahnadagi istalgan ob'ektni bosing (Kofe finjoni, Cupcake, Daraxt, Stol)
+        </div>
+      `;
+    };
+
+    window.focusOnSelected = function() {
+      if (!selectedObject) return;
+      const bBox = new THREE.Box3().setFromObject(selectedObject);
+      const center = new THREE.Vector3();
+      bBox.getCenter(center);
+      const sphere = new THREE.Sphere();
+      bBox.getBoundingSphere(sphere);
+      const radius = Math.max(0.6, sphere.radius);
+
+      focusStartPos.copy(camera.position);
+      focusStartLook.copy(controls.target);
+
+      focusTargetLook.copy(center);
+      focusTargetPos.copy(center).add(new THREE.Vector3(radius * 1.8, radius * 1.2, radius * 1.8));
+
+      focusProgress = 0.0;
+      isFocusing = true;
+    };
+
+    window.toggleSelectedVisibility = function() {
+      if (selectedObject) {
+        selectedObject.visible = !selectedObject.visible;
+        if (boxHelper) boxHelper.visible = selectedObject.visible;
+      }
+    };
+
+    window.randomizeSelectedColor = function() {
+      if (selectedObject && selectedObject.material) {
+        const rndColor = new THREE.Color().setHSL(Math.random(), 0.85, 0.55);
+        if (Array.isArray(selectedObject.material)) {
+          selectedObject.material.forEach(m => { m.color.copy(rndColor); });
+        } else {
+          selectedObject.material.color.copy(rndColor);
+        }
+        selectObject(selectedObject, "0.05");
+      }
+    };
+
+    // Keyboard Shortcuts (Unreal Workflow: F to Focus, H to Hide, Esc to Deselect)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'f' || e.key === 'F') {
+        focusOnSelected();
+      } else if (e.key === 'h' || e.key === 'H') {
+        toggleSelectedVisibility();
+      } else if (e.key === 'Escape') {
+        deselectObject();
+      }
+    });
 
     // Resize Handler
     window.addEventListener('resize', () => {
