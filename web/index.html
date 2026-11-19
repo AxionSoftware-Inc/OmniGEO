@@ -46,14 +46,17 @@
           <span>📂 3D Fayl Ochish (.glb, .obj)</span>
           <input type="file" id="file-input" accept=".glb,.gltf,.obj" class="hidden" onchange="handleFileSelect(this.files)">
         </label>
+        <button onclick="toggleFullscreen()" class="bg-purple-600/30 hover:bg-purple-600/50 border border-purple-400/50 text-purple-200 text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1 transition">
+          <span>⛶ To'liq Ekran</span>
+        </button>
         <button onclick="resetCamera()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1 transition">
-          <span>🎯 Kamerani Tiklash</span>
+          <span>🎯 Markaz</span>
         </button>
       </div>
     </div>
 
     <!-- 3D Canvas Viewport with Drag-and-Drop Dropzone -->
-    <div id="dropzone" class="relative w-full h-[450px] bg-[#030712] rounded-xl overflow-hidden border border-slate-800 shadow-2xl transition-colors">
+    <div id="dropzone" class="relative w-full h-[560px] bg-[#030712] rounded-xl overflow-hidden border border-slate-800 shadow-2xl transition-colors">
       <div id="canvas-container" class="w-full h-full"></div>
 
       <!-- Telemetry Overlay HUD (Top-Left) -->
@@ -197,7 +200,7 @@
     // --- THREE.JS ENGINE SETUP ---
     const container = document.getElementById('canvas-container');
     const width = container.clientWidth || 800;
-    const height = 450;
+    const height = container.clientHeight || 560;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x060913);
@@ -217,7 +220,28 @@
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
+    controls.enablePan = true;
+    controls.screenSpacePanning = true;
     controls.target.set(0, 3, 0);
+
+    window.toggleFullscreen = function() {
+      const el = document.getElementById('dropzone');
+      if (!document.fullscreenElement) {
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    };
+    document.addEventListener('fullscreenchange', () => {
+      setTimeout(() => {
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      }, 120);
+    });
 
     // --- LIGHTING RIG ---
     const hemiLight = new THREE.HemisphereLight(0xfff5ea, 0x1b2030, 0.65);
