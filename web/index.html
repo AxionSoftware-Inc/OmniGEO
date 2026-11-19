@@ -49,6 +49,15 @@
           <span class="text-slate-400">Overdraw (Isrof):</span>
           <span class="font-bold text-emerald-300">Qat'iy 1.0x (Nol Isrof)</span>
         </div>
+        <div class="flex flex-col gap-1 pt-1.5 border-t border-slate-700/50">
+          <span class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Model Tanlash (Real STEP):</span>
+          <select id="model-select" onchange="switchModel(this.value)" class="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-amber-300 font-sans outline-none focus:border-amber-400 cursor-pointer">
+            <option value="sample_diverse_assembly.omnicad">1,000,000 ta Detal (Diverse CAD Cluster)</option>
+            <option value="as1_pe_203.omnicad">Real STEP: as1_pe_203 (NIST Assembly - 28 ta silindr)</option>
+            <option value="io1-cm-214.omnicad">Real STEP: io1-cm-214 (Industrial Flange & Pipe)</option>
+            <option value="sg1-c5-214.omnicad">Real STEP: sg1-c5-214 (Conical Shell Component)</option>
+          </select>
+        </div>
         <div class="flex items-center justify-between border-t border-slate-700/50 pt-1.5">
           <span class="text-slate-400">Kadr Tezligi (FPS):</span>
           <span class="font-bold text-emerald-400 text-base" id="hud-fps">-- FPS</span>
@@ -458,10 +467,10 @@
     let activePartCount = 0;
 
     // Load actual .omnicad binary file from server
-    async function loadOmniCadBinary() {
+    async function loadOmniCadBinary(filename = 'sample_diverse_assembly.omnicad') {
       try {
-        document.getElementById('hud-filename').innerText = "sample_diverse_assembly.omnicad";
-        const res = await fetch('sample_diverse_assembly.omnicad');
+        document.getElementById('hud-filename').innerText = filename;
+        const res = await fetch(filename);
         if (!res.ok) throw new Error("Fayl topilmadi: " + res.statusText);
 
         const arrayBuffer = await res.arrayBuffer();
@@ -492,6 +501,10 @@
 
         const floatData = new Float32Array(numPartsToLoad * 8);
 
+        let minX = 1e9, maxX = -1e9;
+        let minY = 1e9, maxY = -1e9;
+        let minZ = 1e9, maxZ = -1e9;
+
         for (let i = 0; i < numPartsToLoad; ++i) {
           const byteOffset = partsOffset + i * 32;
 
@@ -514,6 +527,10 @@
           const matId = dataView.getUint8(byteOffset + 25);
           const packedMeta = shapeType + matId * 16.0;
 
+          minX = Math.min(minX, px); maxX = Math.max(maxX, px);
+          minY = Math.min(minY, py); maxY = Math.max(maxY, py);
+          minZ = Math.min(minZ, pz); maxZ = Math.max(maxZ, pz);
+
           // Texel 0 (px, py, pz, param0)
           floatData[i * 8 + 0] = px;
           floatData[i * 8 + 1] = py;
@@ -528,7 +545,7 @@
         }
 
         // Upload to GPU Texture
-        const texHeight = Math.ceil((numPartsToLoad * 2) / TEX_WIDTH);
+        const texHeight = Math.ceil((Math.max(numPartsToLoad, 1) * 2) / TEX_WIDTH);
         const paddedData = new Float32Array(TEX_WIDTH * texHeight * 4);
         paddedData.set(floatData);
 
@@ -549,11 +566,26 @@
         document.getElementById('hud-vram-buf').innerText = `${vramMB} MB`;
         console.log(`GPU Texture Buffer muvaffaqiyatli yuklandi: ${numPartsToLoad} ta real detal, ${vramMB} MB VRAM`);
 
+        // Center camera dynamically if switching models
+        if (numPartsToLoad > 0 && isFinite(minX)) {
+          const cX = (minX + maxX) * 0.5;
+          const cY = (minY + maxY) * 0.5;
+          const cZ = (minZ + maxZ) * 0.5;
+          const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 2.0);
+          camPos = [cX, cY + span * 0.25, cZ + span * 1.5];
+          camYaw = 0.0;
+          camPitch = -0.15;
+        }
+
       } catch (err) {
         console.error("Binar fayl yuklash xatosi:", err);
         document.getElementById('hud-filename').innerText = "Xatolik: " + err.message;
       }
     }
+
+    window.switchModel = function(fn) {
+      loadOmniCadBinary(fn);
+    };
 
     // Camera State: Looking directly at assembly center (0, 2.0, 0) from (0, 4.5, 14.0)
     let camPos = [0.0, 4.5, 14.0];
