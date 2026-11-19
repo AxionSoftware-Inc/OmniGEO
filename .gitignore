@@ -39,6 +39,14 @@ venv.bak/
 *.swp
 *.swo
 
+# Rust build artifacts
+target/
+rust_core/target/
+*.dll
+*.exe
+*.pdb
+
 # OS files
 .DS_Store
 Thumbs.db
+

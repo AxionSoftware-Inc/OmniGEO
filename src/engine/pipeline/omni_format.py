@@ -55,9 +55,9 @@ class OmniBinaryWriter:
         mat_count = len(materials)
 
         with open(filepath, 'wb') as f:
-            # 1. Header (64 bytes)
+            # 1. Header (64 bytes exact)
             header = struct.pack(
-                '<4sIII6fIII16s',
+                '<4sII6fIII16s',
                 OmniBinaryWriter.MAGIC,
                 OmniBinaryWriter.VERSION,
                 0, # Flags (0 = uncompressed, 1 = zlib)
@@ -72,9 +72,9 @@ class OmniBinaryWriter:
 
             # 2. Materials
             for mat in materials:
-                # 32 bytes per material
+                # 32 bytes per material (8 floats)
                 m_bytes = struct.pack(
-                    '<4ffff',
+                    '<8f',
                     mat['base_color'][0], mat['base_color'][1], mat['base_color'][2], mat['base_color'][3],
                     mat['roughness'], mat['metallic'], mat['reflectance'], mat['ao']
                 )
@@ -124,7 +124,7 @@ class OmniBinaryReader:
 
             (magic, version, flags,
              b_min_x, b_min_y, b_min_z, b_max_x, b_max_y, b_max_z,
-             proto_count, total_instances, mat_count, _) = struct.unpack('<4sIII6fIII16s', header_bytes)
+             proto_count, total_instances, mat_count, _) = struct.unpack('<4sII6fIII16s', header_bytes)
 
             if magic != OmniBinaryWriter.MAGIC:
                 raise ValueError(f"Invalid magic identifier: {magic}")
@@ -132,7 +132,7 @@ class OmniBinaryReader:
             # Read Materials
             materials = []
             for _ in range(mat_count):
-                m_data = struct.unpack('<4ffff', f.read(32))
+                m_data = struct.unpack('<8f', f.read(32))
                 materials.append({
                     'base_color': m_data[0:4],
                     'roughness': m_data[4],
