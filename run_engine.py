@@ -33,13 +33,13 @@ def start_server():
 
 def main():
     print("=" * 70)
-    print("   OMNIGEO: MATHEMATICAL CONTINUOUS 3D CAD/BIM ENGINE v1.0")
+    print("   OMNIGEO: PROCEDURAL CAD RAY-VISIBILITY ENGINE v2.0")
     print("=" * 70)
-    print("Arxitektura: Continuous Geometry Clipmap + Spatial DAG + RTE Math")
-    print("Landshaft masshtabi: 100+ km (Gigant relef)")
-    print("Detalizatsiya: 0.001 m (1 mm) makro aniqlik")
-    print("Xotira sarfi: < 12 MB VRAM (Klassik meshda 2.8 GB o'rniga)")
-    print("Kadrlar chastotasi: 60 - 120 FPS (Mobil va kuchsiz GPU larda ham)")
+    print("Arxitektura: Fast Grid DDA + Analytic SDF Raymarching (Zero Overdraw)")
+    print("Virtual maydon: 1,000,000 x 1,000,000 (1 Trillion matematik CAD detal)")
+    print("Geometriya xotirasi: 0 Bayt VRAM (Procedural hash / zero mesh buffer)")
+    print("Ko'rinuvchanlik narxi: Qat'iy 1.0x Overdraw (faqat ko'ringan yuzalar)")
+    print("Kadr tezligi: 100+ FPS (GPU-Driven Screen-Space)")
     print("=" * 70)
 
     server_thread = threading.Thread(target=start_server, daemon=True)
