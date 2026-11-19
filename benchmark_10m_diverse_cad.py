@@ -25,12 +25,25 @@ def run_diverse_cad_benchmark(num_parts=1_000_000):
     # Deterministic vectorized generation of DIVERSE components:
     # 6 shape types, 5 materials, random radii, heights, positions across 10 km
     np.random.seed(42)
-    pos_x = np.random.uniform(-5000.0, 5000.0, num_parts).astype(np.float32)
-    pos_y = np.random.uniform(0.1, 50.0, num_parts).astype(np.float32)
-    pos_z = np.random.uniform(-5000.0, 5000.0, num_parts).astype(np.float32)
+    # Cluster parts into realistic CAD sub-assemblies (e.g. 1000 parts per machine/assembly)
+    parts_per_assembly = 1000
+    num_assemblies = (num_parts + parts_per_assembly - 1) // parts_per_assembly
+    grid_side = int(np.ceil(np.sqrt(num_assemblies)))
 
-    param0 = np.random.uniform(0.1, 4.0, num_parts).astype(np.float32) # Radius / dimension
-    param1 = np.random.uniform(0.2, 12.0, num_parts).astype(np.float32) # Height / length
+    assembly_ids = np.arange(num_parts) // parts_per_assembly
+    # Assembly 0 starts directly at (0, 0), Assembly 1 at (16, 0), etc.
+    ass_x = (assembly_ids % grid_side).astype(np.float32) * 16.0
+    ass_z = (assembly_ids // grid_side).astype(np.float32) * 16.0
+
+    # Parts are localized inside their respective assembly radius (within 5.5 meters of assembly center)
+    offset_x = np.random.uniform(-5.5, 5.5, num_parts).astype(np.float32)
+    offset_z = np.random.uniform(-5.5, 5.5, num_parts).astype(np.float32)
+    pos_x = ass_x + offset_x
+    pos_z = ass_z + offset_z
+    pos_y = np.random.uniform(0.1, 4.5, num_parts).astype(np.float32)
+
+    param0 = np.random.uniform(0.3, 1.3, num_parts).astype(np.float32) # Radius / dimension (0.3m to 1.3m)
+    param1 = np.random.uniform(0.6, 3.2, num_parts).astype(np.float32) # Height / length
 
     yaw = np.random.uniform(-3.14, 3.14, num_parts).astype(np.float32)
     pitch = np.random.uniform(-1.57, 1.57, num_parts).astype(np.float32)
