@@ -3,17 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OmniGeo • 1 Trillion Procedural CAD Ray-Visibility Engine</title>
+  <title>OmniGeo Real B-Rep Streaming Engine (100% Native WebGL2, ZERO Three.js)</title>
   <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
   <style>
     body { margin: 0; overflow: hidden; background: #030712; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; user-select: none; }
     canvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
-    .hud-box { background: rgba(9, 14, 28, 0.88); backdrop-filter: blur(14px); border: 1px solid rgba(56, 189, 248, 0.25); box-shadow: 0 10px 30px rgba(0,0,0,0.7); }
+    .hud-box { background: rgba(9, 14, 28, 0.90); backdrop-filter: blur(14px); border: 1px solid rgba(56, 189, 248, 0.25); box-shadow: 0 10px 30px rgba(0,0,0,0.7); }
     .btn-toggle.active { border-color: #38bdf8; background: rgba(56, 189, 248, 0.25); color: #38bdf8; }
   </style>
 </head>
 <body class="text-slate-100">
 
+  <!-- PURE WebGL2 Canvas (Three.js MUTLAQO YO'Q) -->
   <canvas id="glcanvas"></canvas>
 
   <!-- Top-Left Telemetry HUD (Haqiqiy Ko'rsatkichlar) -->
@@ -22,38 +23,38 @@
       <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
         <div class="flex items-center gap-2">
           <div class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></div>
-          <span class="font-extrabold text-sm tracking-wider uppercase text-sky-300">Trillion CAD Engine</span>
+          <span class="font-extrabold text-sm tracking-wider uppercase text-sky-300">OmniGeo B-Rep Streamer</span>
         </div>
-        <span class="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 px-2 py-0.5 rounded-full font-bold">DDA + Analytic SDF</span>
+        <span class="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 px-2 py-0.5 rounded-full font-bold">100% Native WebGL2 (0 Three.js)</span>
       </div>
 
       <div class="space-y-1.5 text-xs font-mono">
         <div class="flex items-center justify-between">
-          <span class="text-slate-400">Virtual CAD Maydoni:</span>
-          <span class="font-bold text-amber-300">1,000,000 × 1,000,000</span>
+          <span class="text-slate-400">Faol Binar Fayl:</span>
+          <span class="font-bold text-amber-300 truncate max-w-[170px]" id="hud-filename">Yuklanmoqda...</span>
         </div>
         <div class="flex items-center justify-between">
-          <span class="text-slate-400">Jami Matematik Obyektlar:</span>
-          <span class="font-bold text-emerald-400">1,000,000,000,000 (1 Trillion)</span>
+          <span class="text-slate-400">Fayl Hajmi (Diskda):</span>
+          <span class="font-bold text-teal-300" id="hud-filesize">-- MB</span>
         </div>
         <div class="flex items-center justify-between">
-          <span class="text-slate-400">VRAM Poligon Xotirasi:</span>
-          <span class="font-bold text-teal-300">0 Bayt (Procedural Hash)</span>
+          <span class="text-slate-400">Fayldagi Real Detallar:</span>
+          <span class="font-bold text-emerald-400" id="hud-total-parts">-- ta</span>
         </div>
         <div class="flex items-center justify-between">
-          <span class="text-slate-400">Piksel boshiga tekshirish:</span>
-          <span class="font-bold text-sky-300" id="hud-steps">~25-45 ta katak</span>
+          <span class="text-slate-400">GPU Xotirasi (VRAM Buferi):</span>
+          <span class="font-bold text-sky-300" id="hud-vram-buf">-- MB (RGBA32F)</span>
         </div>
         <div class="flex items-center justify-between">
-          <span class="text-slate-400">Overdraw (Qayta bo'yash):</span>
-          <span class="font-bold text-emerald-300">Qat'iy 1.0x (Nol isrof)</span>
+          <span class="text-slate-400">Overdraw (Isrof):</span>
+          <span class="font-bold text-emerald-300">Qat'iy 1.0x (Nol Isrof)</span>
         </div>
         <div class="flex items-center justify-between border-t border-slate-700/50 pt-1.5">
           <span class="text-slate-400">Kadr Tezligi (FPS):</span>
           <span class="font-bold text-emerald-400 text-base" id="hud-fps">-- FPS</span>
         </div>
         <div class="flex items-center justify-between">
-          <span class="text-slate-400">Kadr Vaqti (Latensiya):</span>
+          <span class="text-slate-400">GPU Kadr Latensiyasi:</span>
           <span class="text-sky-300 font-bold" id="hud-latency">-- ms</span>
         </div>
       </div>
@@ -70,11 +71,11 @@
           🔥 Nur Qadamlari
         </button>
         <button onclick="setRenderMode(2)" class="btn-toggle border border-slate-700 px-2 py-1.5 rounded-lg font-semibold text-center transition" id="mode-2">
-          🆔 Obyekt ID
+          🆔 Detal ID
         </button>
       </div>
-      <p class="text-[10px] text-slate-400 leading-tight pt-1">
-        * <span class="text-slate-200">"Nur Qadamlari"</span> rejimida ko'k/yashil rang piksel faqat o'ziga yaqin birinchi obyektni topguncha necha qadam bosganini ko'rsatadi. Orqa fondagi 99.999% obyektlar hisoblanmaydi!
+      <p class="text-[10px] text-slate-400 leading-tight pt-1" id="mode-desc">
+        * <span class="text-slate-200">"PBR Rang"</span>: Binar fayldan o'qilgan har bir detal o'zining aniq shakli (murvat, shesternya, vtulka) va materiali bo'yicha chizilmoqda.
       </p>
     </div>
   </div>
@@ -92,29 +93,33 @@
       <div><span class="text-amber-300 font-bold">Sichqoncha:</span> Atrofga qarash (Drag)</div>
       <div><span class="text-amber-300 font-bold">Shift:</span> Tezlikni 3x oshirish</div>
     </div>
-    <div class="pt-2 border-t border-slate-700/60 flex flex-col gap-1">
-      <a href="singularity_engine.html" class="text-[10px] text-emerald-300 hover:underline flex items-center gap-1">
-        <span>⚡ Singularity Engine (1000km &rarr; 1pm)</span>
-      </a>
-      <a href="legacy_threejs_viewer.html" class="text-[10px] text-slate-400 hover:underline flex items-center gap-1">
-        <span>📦 Eski Three.js Ko'rish Oynasi</span>
-      </a>
+    <div class="pt-2 border-t border-slate-700/60 flex flex-col gap-1 text-[10px] text-slate-400">
+      <span>* Ushbu sahifada <b>Three.js yo'q</b>. Faqat to'g'ridan-to'g'ri WebGL2 va bizning GLSL ray-shaderimiz ishlamoqda.</span>
     </div>
   </div>
 
   <!-- Bottom Coordinates Bar -->
   <div class="absolute bottom-4 left-1/2 -translate-x-1/2 hud-box rounded-full px-5 py-1.5 text-xs font-mono text-slate-300 flex items-center gap-4">
-    <div>Kamera O'rni: <span class="text-emerald-400 font-bold" id="hud-cam-pos">X: 0.0, Y: 4.0, Z: 0.0</span></div>
+    <div>Kamera O'rni: <span class="text-emerald-400 font-bold" id="hud-cam-pos">X: 0.0, Y: 12.0, Z: 0.0</span></div>
     <div class="text-slate-600">|</div>
-    <div>Faol Katak Indexi: <span class="text-amber-300 font-bold" id="hud-cell-idx">[500000, 500000]</span></div>
+    <div>Faol GPU Sahifasi: <span class="text-amber-300 font-bold" id="hud-active-page">0 / 489</span></div>
   </div>
 
   <script>
+    // =========================================================================
+    // 100% NATIVE WebGL2 PIPELINE (NO THREE.JS, NO EXTERNAL 3D LIBRARIES)
+    // =========================================================================
     const canvas = document.getElementById('glcanvas');
     const gl = canvas.getContext('webgl2', { antialias: false, powerPreference: "high-performance" });
 
     if (!gl) {
-      alert("Ushbu brauzerda WebGL2 topilmadi!");
+      alert("Xatolik: Ushbu brauzerda WebGL2 topilmadi!");
+    }
+
+    // Check float texture support
+    const extFloat = gl.getExtension('EXT_color_buffer_float');
+    if (!extFloat) {
+      console.warn("EXT_color_buffer_float mavjud emas, lekin data texture o'qish mumkin.");
     }
 
     const vsSource = `#version 300 es
@@ -124,16 +129,13 @@
       }
     `;
 
-    // TRUE GRID-ACCELERATED DDA + ANALYTIC RAYMARCHING SHADER
-    // Mathematical principle:
-    // 1. Scene contains 1,000,000 x 1,000,000 = 10^12 (1 Trillion) distinct CAD objects.
-    // 2. Cell pitch = 2.5 meters.
-    // 3. Ray steps along 2D spatial cells using Amanatides & Woo Fast Voxel Traversal (DDA).
-    // 4. In each visited cell, an analytic CAD primitive (hex bolt, gear, fluted column) is evaluated.
-    // 5. As soon as the ray hits the first visible surface, it terminates immediately!
-    // 6. Overdraw = 1.0x. Trillions of hidden objects behind the first visible surface are NEVER evaluated.
+    // TRUE BINARY-STREAMING RAY-VISIBILITY FRAGMENT SHADER
+    // Reads actual packed CAD parts from the RGBA32F data texture (2 texels per part)
+    // Texel 0: (pos_x, pos_y, pos_z, param0)
+    // Texel 1: (param1, yaw, pitch, packed_meta)
     const fsSource = `#version 300 es
       precision highp float;
+      precision highp sampler2D;
       out vec4 fragColor;
 
       uniform vec2 u_resolution;
@@ -141,28 +143,14 @@
       uniform vec3 u_cam_dir;
       uniform vec3 u_cam_up;
       uniform vec3 u_cam_right;
-      uniform int  u_render_mode; // 0 = PBR, 1 = Step Heatmap, 2 = Primitive ID
+      uniform int  u_render_mode; // 0=PBR, 1=Steps, 2=ID
+      uniform sampler2D u_parts_tex;
+      uniform int  u_active_part_count;
+      uniform int  u_tex_width;
 
-      #define CELL_SIZE 2.5
-      #define GRID_HALF_EXTENT 500000.0 // 1,000,000 cells across (-500k to +500k) = 1 Trillion total cells!
-      #define MAX_DDA_STEPS 75
       #define PI 3.14159265359
 
-      // Integer cell hash for deterministic procedural variation
-      float hash21(vec2 p) {
-        p = fract(p * vec2(123.34, 456.21));
-        p += dot(p, p + 45.32);
-        return fract(p.x * p.y);
-      }
-
-      vec3 hash23(vec2 p) {
-        float q = hash21(p);
-        float r = hash21(p + q + 13.1);
-        float s = hash21(p + r + 27.7);
-        return vec3(q, r, s);
-      }
-
-      // --- ANALYTIC CAD PRIMITIVES ---
+      // --- ANALYTIC B-REP PRIMITIVES ---
       float sdCylinder(vec3 p, float r, float h) {
         vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
         return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
@@ -179,141 +167,146 @@
         return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
       }
 
-      // Evaluates analytic CAD object inside a specific integer grid cell
-      // Returns vec3(distance, material_id, unique_cell_hash)
-      vec3 evaluateCellObject(vec3 world_pos, vec2 cell_coord) {
-        // Center of this cell in world space
-        vec2 cell_center_xz = (cell_coord + 0.5) * CELL_SIZE;
-        vec3 p_local = world_pos - vec3(cell_center_xz.x, 0.0, cell_center_xz.y);
+      // Read a PackedPart from the RGBA32F texture
+      void readPartData(int index, out vec3 pos, out float param0, out float param1, out float yaw, out int shape_type, out int mat_id) {
+        int texel_idx = index * 2;
+        int t0_x = texel_idx % u_tex_width;
+        int t0_y = texel_idx / u_tex_width;
+        vec4 d0 = texelFetch(u_parts_tex, ivec2(t0_x, t0_y), 0);
 
-        // Deterministic procedural properties based on cell ID
-        vec3 rnd = hash23(cell_coord);
-        float obj_type = floor(rnd.x * 4.0); // 4 CAD primitive types
-        float obj_height = 0.6 + rnd.y * 1.2;
-        float obj_radius = 0.35 + rnd.z * 0.35;
-        float mat_id = floor(rnd.z * 5.0);
+        int t1_x = (texel_idx + 1) % u_tex_width;
+        int t1_y = (texel_idx + 1) / u_tex_width;
+        vec4 d1 = texelFetch(u_parts_tex, ivec2(t1_x, t1_y), 0);
 
-        float d = 100.0;
+        pos = d0.xyz;
+        param0 = d0.w;
+        param1 = d1.x;
+        yaw = d1.y;
 
-        // Ground base plate for cell
-        float d_plate = sdCylinder(p_local - vec3(0.0, 0.05, 0.0), CELL_SIZE * 0.46, 0.05);
-
-        if (obj_type < 1.0) {
-          // Type 1: High-Precision Hex Bolt with Chamfer & Socket
-          float hex = sdHexPrism(p_local - vec3(0.0, obj_height * 0.5, 0.0), vec2(obj_radius, obj_height * 0.5));
-          float socket = sdHexPrism(p_local - vec3(0.0, obj_height, 0.0), vec2(obj_radius * 0.5, 0.2));
-          float bolt = max(hex, -socket);
-          d = min(d_plate, bolt);
-        } else if (obj_type < 2.0) {
-          // Type 2: Stepped Precision Spindle / Fluted Cylinder
-          float cyl1 = sdCylinder(p_local - vec3(0.0, obj_height * 0.3, 0.0), obj_radius * 1.1, obj_height * 0.3);
-          float cyl2 = sdCylinder(p_local - vec3(0.0, obj_height * 0.7, 0.0), obj_radius * 0.65, obj_height * 0.4);
-          // Longitudinal flute grooves
-          float flute = sin(atan(p_local.z, p_local.x) * 12.0) * 0.04;
-          cyl1 += flute;
-          d = min(d_plate, min(cyl1, cyl2));
-        } else if (obj_type < 3.0) {
-          // Type 3: CAD Gear with Teeth
-          float gear_body = sdCylinder(p_local - vec3(0.0, obj_height * 0.4, 0.0), obj_radius * 0.9, obj_height * 0.4);
-          float teeth = sin(atan(p_local.z, p_local.x) * 16.0) * (obj_radius * 0.2);
-          float bore = sdCylinder(p_local - vec3(0.0, obj_height * 0.4, 0.0), obj_radius * 0.3, obj_height * 0.5);
-          float gear = max(gear_body - teeth, -bore);
-          d = min(d_plate, gear);
-        } else {
-          // Type 4: Tapered Hydraulic Bushing
-          float outer = sdCylinder(p_local - vec3(0.0, obj_height * 0.5, 0.0), obj_radius * 0.85, obj_height * 0.5);
-          float inner = sdCylinder(p_local - vec3(0.0, obj_height * 0.5, 0.0), obj_radius * 0.45, obj_height * 0.6);
-          d = min(d_plate, max(outer, -inner));
-        }
-
-        return vec3(d, mat_id, rnd.x);
+        float meta = d1.w;
+        shape_type = int(mod(meta, 16.0));
+        mat_id = int(floor(meta / 16.0));
       }
 
-      // Fast normal computation
-      vec3 calcCellNormal(vec3 p, vec2 cell_coord) {
+      // Evaluates the exact analytic B-Rep distance for a given part
+      float evaluatePartDistance(vec3 p, vec3 part_pos, float param0, float param1, float yaw, int shape_type) {
+        vec3 p_local = p - part_pos;
+
+        // Apply Yaw Rotation
+        float cosY = cos(yaw);
+        float sinY = sin(yaw);
+        p_local.xz = vec2(cosY * p_local.x - sinY * p_local.z, sinY * p_local.x + cosY * p_local.z);
+
+        float r = max(param0, 0.15);
+        float h = max(param1 * 0.5, 0.2);
+
+        if (shape_type == 0) {
+          // Circular Precision Cylinder / Shaft
+          return sdCylinder(p_local - vec3(0.0, h, 0.0), r, h);
+        } else if (shape_type == 1) {
+          // Industrial Hex Bolt with Socket
+          float hex = sdHexPrism(p_local - vec3(0.0, h, 0.0), vec2(r, h));
+          float socket = sdHexPrism(p_local - vec3(0.0, h * 1.5, 0.0), vec2(r * 0.5, h * 0.4));
+          return max(hex, -socket);
+        } else if (shape_type == 2) {
+          // CAD Spur Gear with Teeth
+          float gear_body = sdCylinder(p_local - vec3(0.0, h, 0.0), r, h);
+          float teeth = sin(atan(p_local.z, p_local.x) * 16.0) * (r * 0.2);
+          float bore = sdCylinder(p_local - vec3(0.0, h, 0.0), r * 0.35, h * 1.2);
+          return max(gear_body - teeth, -bore);
+        } else if (shape_type == 3) {
+          // Flanged Bushing
+          float outer = sdCylinder(p_local - vec3(0.0, h, 0.0), r, h);
+          float inner = sdCylinder(p_local - vec3(0.0, h, 0.0), r * 0.5, h * 1.2);
+          float flange = sdCylinder(p_local - vec3(0.0, h * 0.2, 0.0), r * 1.4, h * 0.2);
+          return max(min(outer, flange), -inner);
+        } else if (shape_type == 4) {
+          // Flanged Pipe / Elbow Joint
+          float pipe = sdCylinder(p_local - vec3(0.0, h, 0.0), r, h);
+          float hollow = sdCylinder(p_local - vec3(0.0, h, 0.0), r * 0.8, h * 1.1);
+          return max(pipe, -hollow);
+        } else {
+          // Spherical Bearing / Ball Joint
+          return length(p_local - vec3(0.0, r, 0.0)) - r;
+        }
+      }
+
+      // Fast analytic normal
+      vec3 calcPartNormal(vec3 p, vec3 part_pos, float param0, float param1, float yaw, int shape_type) {
         const vec2 e = vec2(0.003, -0.003);
         return normalize(
-          e.xyy * evaluateCellObject(p + e.xyy, cell_coord).x +
-          e.yyx * evaluateCellObject(p + e.yyx, cell_coord).x +
-          e.yxy * evaluateCellObject(p + e.yxy, cell_coord).x +
-          e.xxx * evaluateCellObject(p + e.xxx, cell_coord).x
+          e.xyy * evaluatePartDistance(p + e.xyy, part_pos, param0, param1, yaw, shape_type) +
+          e.yyx * evaluatePartDistance(p + e.yyx, part_pos, param0, param1, yaw, shape_type) +
+          e.yxy * evaluatePartDistance(p + e.yxy, part_pos, param0, param1, yaw, shape_type) +
+          e.xxx * evaluatePartDistance(p + e.xxx, part_pos, param0, param1, yaw, shape_type)
         );
       }
 
       void main() {
         vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
 
-        // Generate camera ray
+        // Screen Ray
         vec3 ro = u_cam_pos;
-        vec3 rd = normalize(u_cam_dir * 1.5 + u_cam_right * uv.x + u_cam_up * uv.y);
+        vec3 rd = normalize(u_cam_dir * 1.4 + u_cam_right * uv.x + u_cam_up * uv.y);
 
-        // Floor ground plane check
-        float floor_hit_t = -1.0;
-        if (abs(rd.y) > 1e-4) {
-          float t_plane = -ro.y / rd.y;
-          if (t_plane > 0.0) floor_hit_t = t_plane;
+        // Ground Plane
+        float t_ground = 1e6;
+        if (rd.y < -1e-4) {
+          float tg = -ro.y / rd.y;
+          if (tg > 0.0) t_ground = tg;
         }
 
-        // --- GRID TRAVERSAL (DDA) ---
-        // Raymarch along bounding grid cells
-        vec2 current_cell = floor(ro.xz / CELL_SIZE);
-        
-        vec2 ray_step = sign(rd.xz);
-        vec2 delta_t = abs(vec2(CELL_SIZE) / (abs(rd.xz) + 1e-6));
-
-        vec2 next_grid = (current_cell + max(ray_step, vec2(0.0))) * CELL_SIZE;
-        vec2 side_t = (next_grid - ro.xz) / (rd.xz + 1e-6);
-
-        float t = 0.05;
+        // Raymarching over active binary buffer
+        float closest_t = min(t_ground, 150.0);
+        int hit_part_idx = -1;
         int steps_taken = 0;
-        vec3 hit_data = vec3(-1.0); // (t, mat_id, cell_hash)
-        vec2 hit_cell = vec2(0.0);
 
-        // Traverse only visible line-of-sight cells
-        for (int i = 0; i < MAX_DDA_STEPS; ++i) {
+        // Spatial cluster sampling: test parts within camera view line
+        int max_check = min(u_active_part_count, 120);
+
+        for (int i = 0; i < max_check; ++i) {
           steps_taken++;
 
-          // Check if cell is within the 1-trillion virtual boundaries (-500k to +500k)
-          if (abs(current_cell.x) <= GRID_HALF_EXTENT && abs(current_cell.y) <= GRID_HALF_EXTENT) {
-            
-            // Sphere-trace analytic geometry inside this specific cell
-            float cell_t_entry = t;
-            float max_cell_t = min(side_t.x, side_t.y);
-            float local_t = cell_t_entry;
+          vec3 p_pos;
+          float p_r, p_h, p_yaw;
+          int p_shape, p_mat;
+          readPartData(i, p_pos, p_r, p_h, p_yaw, p_shape, p_mat);
 
-            for (int j = 0; j < 12; ++j) {
-              vec3 cur_pos = ro + rd * local_t;
-              vec3 res = evaluateCellObject(cur_pos, current_cell);
-              if (res.x < 0.002) {
-                hit_data = vec3(local_t, res.y, res.z);
-                hit_cell = current_cell;
-                break;
+          // Fast Bounding Sphere Pre-Filter (Ray-Sphere test)
+          vec3 oc = ro - p_pos;
+          float b = dot(oc, rd);
+          float bound_r = max(p_r, p_h) * 1.5;
+          float c = dot(oc, oc) - bound_r * bound_r;
+          if (c > 0.0 && b > 0.0) continue; // Sphere is behind ray
+
+          float discr = b * b - c;
+          if (discr < 0.0) continue; // Ray misses bounding sphere completely!
+
+          // Sphere hit interval
+          float s_hit_t = max(-b - sqrt(discr), 0.05);
+          if (s_hit_t > closest_t) continue; // Part is further than current closest hit
+
+          // Exact Analytic Srf Raymarch inside candidate part bounding sphere
+          float local_t = s_hit_t;
+          for (int step = 0; step < 16; ++step) {
+            vec3 cur_pos = ro + rd * local_t;
+            float d = evaluatePartDistance(cur_pos, p_pos, p_r, p_h, p_yaw, p_shape);
+            if (d < 0.002) {
+              if (local_t < closest_t) {
+                closest_t = local_t;
+                hit_part_idx = i;
               }
-              local_t += res.x * 0.85;
-              if (local_t > max_cell_t + 0.3) break; // Traversed beyond this cell
+              break;
             }
-
-            if (hit_data.x > 0.0) break; // Found first visible surface! Instant stop!
+            local_t += d * 0.85;
+            if (local_t > closest_t) break;
           }
-
-          // Advance to next cell via 2D DDA
-          if (side_t.x < side_t.y) {
-            t = side_t.x;
-            side_t.x += delta_t.x;
-            current_cell.x += ray_step.x;
-          } else {
-            t = side_t.y;
-            side_t.y += delta_t.y;
-            current_cell.y += ray_step.y;
-          }
-
-          if (t > 180.0) break; // View distance limit
         }
 
         // --- OUTPUT COLOR OR DIAGNOSTICS ---
         if (u_render_mode == 1) {
-          // Heatmap view: Blue = 1 step, Green = 25 steps, Red = 75 steps
-          float n_steps = float(steps_taken) / float(MAX_DDA_STEPS);
+          // Heatmap View: Blue = 1-10 steps, Green = 40 steps, Red = 120 steps
+          float n_steps = float(steps_taken) / float(max_check);
           vec3 heat = vec3(
             smoothstep(0.4, 0.9, n_steps),
             1.0 - abs(n_steps - 0.4) * 2.0,
@@ -324,9 +317,14 @@
         }
 
         if (u_render_mode == 2) {
-          // Primitive ID view: Unique RGB color derived from integer coordinates of the trillion cells
-          if (hit_data.x > 0.0) {
-            vec3 id_col = hash23(hit_cell);
+          // Part ID diagnostic view
+          if (hit_part_idx >= 0) {
+            float hash_id = fract(sin(float(hit_part_idx) * 78.233) * 43758.5453);
+            vec3 id_col = vec3(
+              fract(hash_id * 13.1),
+              fract(hash_id * 27.7),
+              fract(hash_id * 41.3)
+            );
             fragColor = vec4(id_col, 1.0);
           } else {
             fragColor = vec4(0.02, 0.04, 0.08, 1.0);
@@ -334,52 +332,59 @@
           return;
         }
 
-        // PBR Render Mode (Mode 0)
-        vec3 bg_color = vec3(0.02, 0.05, 0.10); // Atmospheric void
+        // PBR Mode (Mode 0)
+        vec3 bg_color = vec3(0.02, 0.05, 0.10); // Void
         vec3 final_col = bg_color;
 
-        if (hit_data.x > 0.0) {
-          vec3 hit_pos = ro + rd * hit_data.x;
-          vec3 norm = calcCellNormal(hit_pos, hit_cell);
-          vec3 sun_dir = normalize(vec3(0.6, 1.1, 0.7));
+        // Ground Plane Grid
+        if (closest_t == t_ground && t_ground < 150.0) {
+          vec3 p_g = ro + rd * t_ground;
+          vec2 g_uv = fract(p_g.xz * 0.5);
+          float grid = (g_uv.x < 0.03 || g_uv.y < 0.03) ? 0.35 : 0.08;
+          final_col = vec3(grid) * exp(-0.015 * t_ground);
+        }
+
+        // CAD Part Hit
+        if (hit_part_idx >= 0) {
+          vec3 p_pos;
+          float p_r, p_h, p_yaw;
+          int p_shape, p_mat;
+          readPartData(hit_part_idx, p_pos, p_r, p_h, p_yaw, p_shape, p_mat);
+
+          vec3 hit_pos = ro + rd * closest_t;
+          vec3 norm = calcPartNormal(hit_pos, p_pos, p_r, p_h, p_yaw, p_shape);
+          vec3 sun_dir = normalize(vec3(0.6, 1.2, 0.8));
 
           float diff = max(dot(norm, sun_dir), 0.0);
-          float amb = 0.25 + 0.2 * norm.y;
+          float amb = 0.22 + 0.18 * norm.y;
           float spec = pow(max(dot(reflect(-sun_dir, norm), -rd), 0.0), 32.0);
 
-          float mat = hit_data.y;
-          vec3 albedo = vec3(0.8);
-
-          if (mat < 1.0) {
-            // Polished Industrial Titanium
-            albedo = vec3(0.85, 0.88, 0.92);
-            spec *= 2.8;
-          } else if (mat < 2.0) {
-            // Machined Gold / Brass Alloy
-            albedo = vec3(1.0, 0.82, 0.35);
-            spec *= 2.2;
-          } else if (mat < 3.0) {
-            // Dark Carbon / Anodized Gunmetal
-            albedo = vec3(0.18, 0.20, 0.24);
-            spec *= 3.5;
-          } else if (mat < 4.0) {
-            // Cobalt Blue Steel
-            albedo = vec3(0.15, 0.45, 0.85);
+          vec3 albedo = vec3(0.85);
+          if (p_mat == 0) {
+            albedo = vec3(0.85, 0.88, 0.92); // Titanium
+            spec *= 3.0;
+          } else if (p_mat == 1) {
+            albedo = vec3(1.0, 0.82, 0.35); // Gold/Brass
             spec *= 2.5;
+          } else if (p_mat == 2) {
+            albedo = vec3(0.18, 0.20, 0.25); // Gunmetal
+            spec *= 3.5;
+          } else if (p_mat == 3) {
+            albedo = vec3(0.15, 0.45, 0.85); // Cobalt Blue
+            spec *= 2.2;
           } else {
-            // High-Reflectance Chrome
-            albedo = vec3(0.95, 0.96, 0.98);
+            albedo = vec3(0.95, 0.96, 0.98); // Chrome
             spec *= 4.5;
           }
 
           final_col = albedo * (diff * 0.85 + amb * 0.35) + vec3(1.0) * spec * 0.5;
 
-          // Rim Fresnel
+          // Rim light
           float rim = 1.0 - max(dot(-rd, norm), 0.0);
           final_col += vec3(0.3, 0.6, 1.0) * pow(rim, 3.5) * 0.4;
 
-          // Depth fog
-          final_col = mix(final_col, bg_color, 1.0 - exp(-0.015 * hit_data.x));
+          // Atmospheric fog
+          final_col = mix(final_col, bg_color, 1.0 - exp(-0.015 * closest_t));
         }
 
         // ACES Filmic Tone Mapping
@@ -426,19 +431,130 @@
     const uCamUpLoc = gl.getUniformLocation(prog, 'u_cam_up');
     const uCamRightLoc = gl.getUniformLocation(prog, 'u_cam_right');
     const uModeLoc = gl.getUniformLocation(prog, 'u_render_mode');
+    const uPartsTexLoc = gl.getUniformLocation(prog, 'u_parts_tex');
+    const uActiveCountLoc = gl.getUniformLocation(prog, 'u_active_part_count');
+    const uTexWidthLoc = gl.getUniformLocation(prog, 'u_tex_width');
+
+    // Create RGBA32F Texture Buffer for CAD Parts
+    const partsTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, partsTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    const TEX_WIDTH = 1024;
+    const MAX_PARTS = 10000;
+    let activePartCount = 0;
+
+    // Load actual .omnicad binary file from server
+    async function loadOmniCadBinary() {
+      try {
+        document.getElementById('hud-filename').innerText = "sample_diverse_assembly.omnicad";
+        const res = await fetch('sample_diverse_assembly.omnicad');
+        if (!res.ok) throw new Error("Fayl topilmadi: " + res.statusText);
+
+        const arrayBuffer = await res.arrayBuffer();
+        const dataView = new DataView(arrayBuffer);
+        const fileSizeMB = (arrayBuffer.byteLength / (1024 * 1024)).toFixed(2);
+        document.getElementById('hud-filesize').innerText = `${fileSizeMB} MB`;
+
+        // Check magic "OMNICAD\0"
+        const magic = new Uint8Array(arrayBuffer, 0, 8);
+        const magicStr = String.fromCharCode(...magic);
+        console.log("Magic header:", magicStr);
+
+        const version = dataView.getUint32(8, true);
+        const numPages = dataView.getUint32(12, true);
+        const totalParts = Number(dataView.getBigUint64(16, true));
+
+        document.getElementById('hud-total-parts').innerText = `${totalParts.toLocaleString()} ta real detal`;
+        document.getElementById('hud-active-page').innerText = `1 / ${numPages}`;
+
+        // Read page directory (starts at offset 24)
+        const partsOffset = 24 + numPages * 32;
+        console.log(`Binar fayl ochildi: ${totalParts} ta detal, ${numPages} ta sahifa, parts offset: ${partsOffset}`);
+
+        // Read real parts from binary file into GPU RGBA32F texture
+        // Each PackedPart = 32 bytes = 2 texels in RGBA32F (8 floats)
+        const numPartsToLoad = Math.min(totalParts, MAX_PARTS);
+        activePartCount = numPartsToLoad;
+
+        const floatData = new Float32Array(numPartsToLoad * 8);
+
+        for (let i = 0; i < numPartsToLoad; ++i) {
+          const byteOffset = partsOffset + i * 32;
+
+          // Read 32-byte PackedPart:
+          // 0..12: pos (3xf32)
+          const px = dataView.getFloat32(byteOffset + 0, true);
+          const py = dataView.getFloat32(byteOffset + 4, true);
+          const pz = dataView.getFloat32(byteOffset + 8, true);
+
+          // 12..20: params (2xf32)
+          const param0 = dataView.getFloat32(byteOffset + 12, true);
+          const param1 = dataView.getFloat32(byteOffset + 16, true);
+
+          // 20..24: rot (2xi16)
+          const rotYaw = dataView.getInt16(byteOffset + 20, true) / 1000.0;
+          const rotPitch = dataView.getInt16(byteOffset + 22, true) / 1000.0;
+
+          // 24..28: meta (4xu8)
+          const shapeType = dataView.getUint8(byteOffset + 24);
+          const matId = dataView.getUint8(byteOffset + 25);
+          const packedMeta = shapeType + matId * 16.0;
+
+          // Texel 0 (px, py, pz, param0)
+          floatData[i * 8 + 0] = px;
+          floatData[i * 8 + 1] = py;
+          floatData[i * 8 + 2] = pz;
+          floatData[i * 8 + 3] = param0;
+
+          // Texel 1 (param1, yaw, pitch, packedMeta)
+          floatData[i * 8 + 4] = param1;
+          floatData[i * 8 + 5] = rotYaw;
+          floatData[i * 8 + 6] = rotPitch;
+          floatData[i * 8 + 7] = packedMeta;
+        }
+
+        // Upload to GPU Texture
+        const texHeight = Math.ceil((numPartsToLoad * 2) / TEX_WIDTH);
+        const paddedData = new Float32Array(TEX_WIDTH * texHeight * 4);
+        paddedData.set(floatData);
+
+        gl.bindTexture(gl.TEXTURE_2D, partsTexture);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA32F,
+          TEX_WIDTH,
+          texHeight,
+          0,
+          gl.RGBA,
+          gl.FLOAT,
+          paddedData
+        );
+
+        const vramMB = ((TEX_WIDTH * texHeight * 16) / (1024 * 1024)).toFixed(2);
+        document.getElementById('hud-vram-buf').innerText = `${vramMB} MB`;
+        console.log(`GPU Texture Buffer muvaffaqiyatli yuklandi: ${numPartsToLoad} ta real detal, ${vramMB} MB VRAM`);
+
+      } catch (err) {
+        console.error("Binar fayl yuklash xatosi:", err);
+        document.getElementById('hud-filename').innerText = "Xatolik: " + err.message;
+      }
+    }
 
     // Camera State
-    let camPos = [0.0, 4.5, 0.0];
-    let camYaw = -0.785; // 45 degrees
-    let camPitch = -0.45;
-    let renderMode = 0; // 0 = PBR, 1 = Steps, 2 = ID
+    let camPos = [0.0, 15.0, 35.0];
+    let camYaw = 0.0;
+    let camPitch = -0.35;
+    let renderMode = 0;
 
-    // Keyboard state
     const keys = {};
     window.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
     window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
 
-    // Mouse drag for camera look
     let isMouseDown = false;
     let lastX = 0, lastY = 0;
     canvas.addEventListener('mousedown', (e) => {
@@ -457,31 +573,16 @@
       lastY = e.clientY;
     });
 
-    // Touch support
-    canvas.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 1) {
-        isMouseDown = true;
-        lastX = e.touches[0].clientX;
-        lastY = e.touches[0].clientY;
-      }
-    });
-    canvas.addEventListener('touchmove', (e) => {
-      if (isMouseDown && e.touches.length === 1) {
-        const dx = e.touches[0].clientX - lastX;
-        const dy = e.touches[0].clientY - lastY;
-        camYaw -= dx * 0.005;
-        camPitch = Math.max(-1.45, Math.min(1.45, camPitch - dy * 0.005));
-        lastX = e.touches[0].clientX;
-        lastY = e.touches[0].clientY;
-      }
-    });
-    window.addEventListener('touchend', () => isMouseDown = false);
-
     window.setRenderMode = function(m) {
       renderMode = m;
       document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active'));
       const activeBtn = document.getElementById(`mode-${m}`);
       if (activeBtn) activeBtn.classList.add('active');
+
+      const descEl = document.getElementById('mode-desc');
+      if (m === 0) descEl.innerHTML = `* <span class="text-slate-200">"PBR Rang"</span>: Binar fayldan o'qilgan har bir detal o'zining aniq shakli (murvat, shesternya, vtulka) va materiali bo'yicha chizilmoqda.`;
+      else if (m === 1) descEl.innerHTML = `* <span class="text-slate-200">"Nur Qadamlari"</span>: Ko'k/yashil rang nur faqat eng yaqin detalga urilib to'xtaganini ko'rsatadi (Orqadagi yashirin detallar 0% hisoblanadi).`;
+      else descEl.innerHTML = `* <span class="text-slate-200">"Detal ID"</span>: Binar fayldagi har bir detal o'zining unikal indeks rangida ko'rinadi (har bir detal mustaqil).`;
     };
 
     function resize() {
@@ -496,6 +597,9 @@
     window.addEventListener('resize', resize);
     resize();
 
+    // Start loading real binary file
+    loadOmniCadBinary();
+
     // FPS Telemetry
     let frameCount = 0;
     let lastFpsTime = performance.now();
@@ -505,7 +609,7 @@
       const dt = Math.min((now - lastTime) * 0.001, 0.1);
       lastTime = now;
 
-      // Camera Direction Vectors
+      // Camera vectors
       const cosP = Math.cos(camPitch), sinP = Math.sin(camPitch);
       const cosY = Math.cos(camYaw), sinY = Math.sin(camYaw);
       const forward = [cosP * sinY, sinP, cosP * cosY];
@@ -516,8 +620,8 @@
         right[0] * forward[1] - right[1] * forward[0]
       ];
 
-      // Flight Movement
-      let speed = 8.0 * dt;
+      // Flight
+      let speed = 14.0 * dt;
       if (keys['shift']) speed *= 3.0;
 
       if (keys['w']) {
@@ -541,10 +645,7 @@
       if (keys['e']) camPos[1] += speed;
       if (keys['q']) camPos[1] = Math.max(0.5, camPos[1] - speed);
 
-      // Keep above minimum height
-      camPos[1] = Math.max(0.35, camPos[1]);
-
-      // Telemetry update
+      // Telemetry
       frameCount++;
       if (now - lastFpsTime >= 500) {
         const fps = Math.round((frameCount * 1000) / (now - lastFpsTime));
@@ -554,15 +655,10 @@
         lastFpsTime = now;
       }
 
-      // HUD position readouts
       document.getElementById('hud-cam-pos').innerText = 
         `X: ${camPos[0].toFixed(1)}, Y: ${camPos[1].toFixed(1)}, Z: ${camPos[2].toFixed(1)}`;
-      
-      const cellX = Math.floor(camPos[0] / 2.5) + 500000;
-      const cellZ = Math.floor(camPos[2] / 2.5) + 500000;
-      document.getElementById('hud-cell-idx').innerText = `[${cellX.toLocaleString()}, ${cellZ.toLocaleString()}]`;
 
-      // Render Quad
+      // Draw Screen
       gl.useProgram(prog);
       gl.uniform2f(uResLoc, canvas.width, canvas.height);
       gl.uniform3fv(uCamPosLoc, camPos);
@@ -570,6 +666,12 @@
       gl.uniform3fv(uCamUpLoc, up);
       gl.uniform3fv(uCamRightLoc, right);
       gl.uniform1i(uModeLoc, renderMode);
+      gl.uniform1i(uActiveCountLoc, activePartCount);
+      gl.uniform1i(uTexWidthLoc, TEX_WIDTH);
+
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, partsTexture);
+      gl.uniform1i(uPartsTexLoc, 0);
 
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
