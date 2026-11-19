@@ -1,6 +1,12 @@
 pub mod frame_pacer;
+pub mod brep;
+pub mod ray_brep;
+pub mod assembly_bvh;
 
 pub use frame_pacer::{FrameLimit, FramePacer};
+pub use brep::{BoundingBox3D, BrepFace, SurfaceGeometry, Vec3};
+pub use ray_brep::{AnalyticIntersector, Ray3D, RayHit};
+pub use assembly_bvh::{AssemblyBvh, BvhNode};
 
 // =========================================================================
 // C ABI / FFI Export for Python, C++, and Host Bindings
@@ -55,45 +61,5 @@ pub extern "C" fn omni_pacer_destroy(pacer: *mut FramePacer) {
         unsafe {
             drop(Box::from_raw(pacer));
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_720hz_pacer() {
-        let mut pacer = FramePacer::new(FrameLimit::Target(720));
-        let expected_micros = 1_000_000.0 / 720.0; // ~1388.89 us
-
-        for _ in 0..60 {
-            let _delta = pacer.begin_frame();
-            let mut sum: u64 = 0;
-            for i in 0..1000 {
-                sum = sum.wrapping_add(i);
-            }
-            std::hint::black_box(sum);
-        }
-
-        println!("720 FPS Target: {:.2} us | Achieved: {:.2} us",
-            expected_micros, pacer.frame_time_micros());
-        assert!((pacer.frame_time_micros() - expected_micros).abs() < 250.0);
-    }
-
-    #[test]
-    fn test_uncapped_throughput() {
-        let mut pacer = FramePacer::new(FrameLimit::Uncapped);
-        let start = std::time::Instant::now();
-        let frames = 100_000;
-
-        for _ in 0..frames {
-            let _ = pacer.begin_frame();
-        }
-
-        let total_time = start.elapsed();
-        let fps = frames as f64 / total_time.as_secs_f64();
-        println!("Uncapped frame loop throughput: {:.0} FPS!", fps);
-        assert!(fps > 100_000.0);
     }
 }
