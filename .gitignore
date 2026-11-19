@@ -50,3 +50,8 @@ rust_core/target/
 .DS_Store
 Thumbs.db
 
+# Raw 3D downloads
+models/Interior Luz*/
+models/*.rar
+models/*.zip
+
