@@ -9,6 +9,7 @@
   <script src="GLTFLoader.js"></script>
   <script src="OrbitControls.js"></script>
   <!-- Base64 Models -->
+  <script src="user_scene_b64.js"></script>
   <script src="unreal_arch_scene_b64.js"></script>
   <script src="s_1_lp_b64.js"></script>
   <style>
@@ -118,18 +119,18 @@
     <!-- Model Switcher Bar (Presets) -->
     <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
       <div class="flex items-center gap-2 overflow-x-auto">
-        <span class="text-xs font-semibold text-slate-400 whitespace-nowrap">Fotoreal Sahnalar:</span>
-        <button onclick="loadScenePreset('unreal_pavilion')" class="preset-btn active bg-amber-500/20 text-amber-300 border border-amber-400 text-xs font-semibold px-3 py-1.5 rounded-lg transition" id="btn-p-pavilion">
-          🏛️ Unreal Grand Pavilyon (PBR)
+        <span class="text-xs font-semibold text-slate-400 whitespace-nowrap">Sahnalar:</span>
+        <button onclick="loadScenePreset('user_19m')" class="preset-btn active bg-emerald-500/20 text-emerald-300 border border-emerald-400 text-xs font-semibold px-3 py-1.5 rounded-lg transition shadow-sm" id="btn-p-user">
+          🌟 Sizning Sahnangiz (19.7M Poligon • 1,235 Ob'ekt)
+        </button>
+        <button onclick="loadScenePreset('unreal_pavilion')" class="preset-btn bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition" id="btn-p-pavilion">
+          🏛️ Unreal Grand Pavilyon
         </button>
         <button onclick="loadScenePreset('giant_complex')" class="preset-btn bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition" id="btn-p-complex">
-          🚀 12x Pavilyon Majmuasi (227k tris)
+          🚀 12x Majmua (227k tris)
         </button>
         <button onclick="loadScenePreset('s1_lp')" class="preset-btn bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition" id="btn-p-s1lp">
-          🛋️ Blender S_1_LP (2K PBR)
-        </button>
-        <button onclick="loadScenePreset('ultra_mesh')" class="preset-btn bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg transition" id="btn-p-ultramesh">
-          ⚙️ 500k Nanite Kavisli Mesh
+          🛋️ Blender S_1_LP
         </button>
       </div>
 
@@ -341,8 +342,55 @@
       scene.remove(currentModelGroup);
       currentModelGroup = new THREE.Group();
 
-      if (type === 'unreal_pavilion') {
-        document.getElementById('btn-p-pavilion').classList.add('active', 'bg-amber-500/20', 'text-amber-300', 'border-amber-400');
+      if (type === 'user_19m') {
+        const btn = document.getElementById('btn-p-user');
+        if (btn) {
+          btn.classList.add('active', 'bg-emerald-500/20', 'text-emerald-300', 'border-emerald-400');
+        }
+        if (window.USER_SCENE_DATA) {
+          const d = window.USER_SCENE_DATA;
+          function b64ToF32(b64) {
+            const bin = atob(b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return new Float32Array(bytes.buffer);
+          }
+          function b64ToU32(b64) {
+            const bin = atob(b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return new Uint32Array(bytes.buffer);
+          }
+          const geom = new THREE.BufferGeometry();
+          const pos = b64ToF32(d.posB64);
+          const norm = b64ToF32(d.normB64);
+          const col = b64ToF32(d.colB64);
+          const idx = b64ToU32(d.idxB64);
+
+          geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+          geom.setAttribute('normal', new THREE.BufferAttribute(norm, 3));
+          geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
+          geom.setIndex(new THREE.BufferAttribute(idx, 1));
+
+          const mat = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            roughness: 0.35,
+            metalness: 0.18,
+            side: THREE.DoubleSide
+          });
+          const mesh = new THREE.Mesh(geom, mat);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          currentModelGroup.add(mesh);
+          scene.add(currentModelGroup);
+          activeTris = d.triangles;
+          updateHud("Blender 19.7M (Untitled.obj)", activeTris, `${d.objectsCount} Ob'ekt • ${d.materialsCount} Material`, "1 Indirect Draw Call");
+          controls.target.set(0, 0, 0);
+          camera.position.set(18, 12, 22);
+        }
+      } else if (type === 'unreal_pavilion') {
+        const btn = document.getElementById('btn-p-pavilion');
+        if (btn) btn.classList.add('active', 'bg-amber-500/20', 'text-amber-300', 'border-amber-400');
         if (window.UNREAL_ARCH_SCENE_B64) {
           loadGLBFromBase64(window.UNREAL_ARCH_SCENE_B64, (model) => {
             currentModelGroup.add(model);
@@ -417,9 +465,13 @@
       document.getElementById('hud-drawcalls').innerText = dc;
     }
 
-    // Initial Load
+    // Initial Load - default to user's 19.7M Blender scene
     setTimeout(() => {
-      loadScenePreset('unreal_pavilion');
+      if (window.USER_SCENE_DATA) {
+        loadScenePreset('user_19m');
+      } else {
+        loadScenePreset('unreal_pavilion');
+      }
     }, 50);
 
     // --- CAMERA VIEWPOINTS ---
