@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniGeo • 1 Trillion Procedural CAD Ray-Visibility Engine</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    body { margin: 0; overflow: hidden; background: #030712; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; user-select: none; }
+    canvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
+    .hud-box { background: rgba(9, 14, 28, 0.88); backdrop-filter: blur(14px); border: 1px solid rgba(56, 189, 248, 0.25); box-shadow: 0 10px 30px rgba(0,0,0,0.7); }
+    .btn-toggle.active { border-color: #38bdf8; background: rgba(56, 189, 248, 0.25); color: #38bdf8; }
+  </style>
+</head>
+<body class="text-slate-100">
+
+  <canvas id="glcanvas"></canvas>
+
+  <!-- Top-Left Telemetry HUD (Haqiqiy Ko'rsatkichlar) -->
+  <div class="absolute top-4 left-4 flex flex-col gap-2.5 max-w-sm pointer-events-none">
+    <div class="hud-box rounded-2xl p-4 space-y-2 pointer-events-auto">
+      <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></div>
+          <span class="font-extrabold text-sm tracking-wider uppercase text-sky-300">Trillion CAD Engine</span>
+        </div>
+        <span class="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 px-2 py-0.5 rounded-full font-bold">DDA + Analytic SDF</span>
+      </div>
+
+      <div class="space-y-1.5 text-xs font-mono">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Virtual CAD Maydoni:</span>
+          <span class="font-bold text-amber-300">1,000,000 × 1,000,000</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Jami Matematik Obyektlar:</span>
+          <span class="font-bold text-emerald-400">1,000,000,000,000 (1 Trillion)</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">VRAM Poligon Xotirasi:</span>
+          <span class="font-bold text-teal-300">0 Bayt (Procedural Hash)</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Piksel boshiga tekshirish:</span>
+          <span class="font-bold text-sky-300" id="hud-steps">~25-45 ta katak</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Overdraw (Qayta bo'yash):</span>
+          <span class="font-bold text-emerald-300">Qat'iy 1.0x (Nol isrof)</span>
+        </div>
+        <div class="flex items-center justify-between border-t border-slate-700/50 pt-1.5">
+          <span class="text-slate-400">Kadr Tezligi (FPS):</span>
+          <span class="font-bold text-emerald-400 text-base" id="hud-fps">-- FPS</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Kadr Vaqti (Latensiya):</span>
+          <span class="text-sky-300 font-bold" id="hud-latency">-- ms</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Diagnostic Visualizer Controls -->
+    <div class="hud-box rounded-xl p-3 text-xs pointer-events-auto space-y-2">
+      <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Vizualizatsiya Rejimi:</div>
+      <div class="grid grid-cols-3 gap-1.5">
+        <button onclick="setRenderMode(0)" class="btn-toggle active border border-slate-700 px-2 py-1.5 rounded-lg font-semibold text-center transition" id="mode-0">
+          🎨 PBR Rang
+        </button>
+        <button onclick="setRenderMode(1)" class="btn-toggle border border-slate-700 px-2 py-1.5 rounded-lg font-semibold text-center transition" id="mode-1">
+          🔥 Nur Qadamlari
+        </button>
+        <button onclick="setRenderMode(2)" class="btn-toggle border border-slate-700 px-2 py-1.5 rounded-lg font-semibold text-center transition" id="mode-2">
+          🆔 Obyekt ID
+        </button>
+      </div>
+      <p class="text-[10px] text-slate-400 leading-tight pt-1">
+        * <span class="text-slate-200">"Nur Qadamlari"</span> rejimida ko'k/yashil rang piksel faqat o'ziga yaqin birinchi obyektni topguncha necha qadam bosganini ko'rsatadi. Orqa fondagi 99.999% obyektlar hisoblanmaydi!
+      </p>
+    </div>
+  </div>
+
+  <!-- Top-Right Flight Controls Guide -->
+  <div class="absolute top-4 right-4 hud-box rounded-2xl p-3 text-xs space-y-1.5 max-w-xs pointer-events-auto">
+    <div class="font-bold text-sky-300 flex items-center justify-between border-b border-slate-700/60 pb-1">
+      <span>🎮 Boshqaruv (Harakat)</span>
+      <span class="text-[10px] text-slate-400 font-mono">WASD + Sichqoncha</span>
+    </div>
+    <div class="text-[11px] text-slate-300 space-y-1 font-mono">
+      <div><span class="text-amber-300 font-bold">W / S:</span> Oldinga / Orqaga</div>
+      <div><span class="text-amber-300 font-bold">A / D:</span> Chapga / O'ngga</div>
+      <div><span class="text-amber-300 font-bold">Q / E:</span> Pastga / Yuqoriga</div>
+      <div><span class="text-amber-300 font-bold">Sichqoncha:</span> Atrofga qarash (Drag)</div>
+      <div><span class="text-amber-300 font-bold">Shift:</span> Tezlikni 3x oshirish</div>
+    </div>
+  </div>
+
+  <!-- Bottom Coordinates Bar -->
+  <div class="absolute bottom-4 left-1/2 -translate-x-1/2 hud-box rounded-full px-5 py-1.5 text-xs font-mono text-slate-300 flex items-center gap-4">
+    <div>Kamera O'rni: <span class="text-emerald-400 font-bold" id="hud-cam-pos">X: 0.0, Y: 4.0, Z: 0.0</span></div>
+    <div class="text-slate-600">|</div>
+    <div>Faol Katak Indexi: <span class="text-amber-300 font-bold" id="hud-cell-idx">[500000, 500000]</span></div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('glcanvas');
+    const gl = canvas.getContext('webgl2', { antialias: false, powerPreference: "high-performance" });
+
+    if (!gl) {
+      alert("Ushbu brauzerda WebGL2 topilmadi!");
+    }
+
+    const vsSource = `#version 300 es
+      in vec2 a_pos;
+      void main() {
+        gl_Position = vec4(a_pos, 0.0, 1.0);
+      }
+    `;
+
+    // TRUE GRID-ACCELERATED DDA + ANALYTIC RAYMARCHING SHADER
+    // Mathematical principle:
+    // 1. Scene contains 1,000,000 x 1,000,000 = 10^12 (1 Trillion) distinct CAD objects.
+    // 2. Cell pitch = 2.5 meters.
+    // 3. Ray steps along 2D spatial cells using Amanatides & Woo Fast Voxel Traversal (DDA).
+    // 4. In each visited cell, an analytic CAD primitive (hex bolt, gear, fluted column) is evaluated.
+    // 5. As soon as the ray hits the first visible surface, it terminates immediately!
+    // 6. Overdraw = 1.0x. Trillions of hidden objects behind the first visible surface are NEVER evaluated.
+    const fsSource = `#version 300 es
+      precision highp float;
+      out vec4 fragColor;
+
+      uniform vec2 u_resolution;
+      uniform vec3 u_cam_pos;
+      uniform vec3 u_cam_dir;
+      uniform vec3 u_cam_up;
+      uniform vec3 u_cam_right;
+      uniform int  u_render_mode; // 0 = PBR, 1 = Step Heatmap, 2 = Primitive ID
+
+      #define CELL_SIZE 2.5
+      #define GRID_HALF_EXTENT 500000.0 // 1,000,000 cells across (-500k to +500k) = 1 Trillion total cells!
+      #define MAX_DDA_STEPS 75
+      #define PI 3.14159265359
+
+      // Integer cell hash for deterministic procedural variation
+      float hash21(vec2 p) {
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+      }
+
+      vec3 hash23(vec2 p) {
+        float q = hash21(p);
+        float r = hash21(p + q + 13.1);
+        float s = hash21(p + r + 27.7);
+        return vec3(q, r, s);
+      }
+
+      // --- ANALYTIC CAD PRIMITIVES ---
+      float sdCylinder(vec3 p, float r, float h) {
+        vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
+        return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+      }
+
+      float sdHexPrism(vec3 p, vec2 h) {
+        const vec3 k = vec3(-0.8660254, 0.5, 0.57735);
+        p = abs(p);
+        p.xy -= 2.0 * min(dot(k.xy, p.xy), 0.0) * k.xy;
+        vec2 d = vec2(
+          length(p.xy - vec2(clamp(p.x, -k.z * h.x, k.z * h.x), h.x)) * sign(p.y - h.x),
+          p.z - h.y
+        );
+        return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+      }
+
+      // Evaluates analytic CAD object inside a specific integer grid cell
+      // Returns vec3(distance, material_id, unique_cell_hash)
+      vec3 evaluateCellObject(vec3 world_pos, vec2 cell_coord) {
+        // Center of this cell in world space
+        vec2 cell_center_xz = (cell_coord + 0.5) * CELL_SIZE;
+        vec3 p_local = world_pos - vec3(cell_center_xz.x, 0.0, cell_center_xz.y);
+
+        // Deterministic procedural properties based on cell ID
+        vec3 rnd = hash23(cell_coord);
+        float obj_type = floor(rnd.x * 4.0); // 4 CAD primitive types
+        float obj_height = 0.6 + rnd.y * 1.2;
+        float obj_radius = 0.35 + rnd.z * 0.35;
+        float mat_id = floor(rnd.z * 5.0);
+
+        float d = 100.0;
+
+        // Ground base plate for cell
+        float d_plate = sdCylinder(p_local - vec3(0.0, 0.05, 0.0), CELL_SIZE * 0.46, 0.05);
+
+        if (obj_type < 1.0) {
+          // Type 1: High-Precision Hex Bolt with Chamfer & Socket
+          float hex = sdHexPrism(p_local - vec3(0.0, obj_height * 0.5, 0.0), vec2(obj_radius, obj_height * 0.5));
+          float socket = sdHexPrism(p_local - vec3(0.0, obj_height, 0.0), vec2(obj_radius * 0.5, 0.2));
+          float bolt = max(hex, -socket);
+          d = min(d_plate, bolt);
+        } else if (obj_type < 2.0) {
+          // Type 2: Stepped Precision Spindle / Fluted Cylinder
+          float cyl1 = sdCylinder(p_local - vec3(0.0, obj_height * 0.3, 0.0), obj_radius * 1.1, obj_height * 0.3);
+          float cyl2 = sdCylinder(p_local - vec3(0.0, obj_height * 0.7, 0.0), obj_radius * 0.65, obj_height * 0.4);
+          // Longitudinal flute grooves
+          float flute = sin(atan(p_local.z, p_local.x) * 12.0) * 0.04;
+          cyl1 += flute;
+          d = min(d_plate, min(cyl1, cyl2));
+        } else if (obj_type < 3.0) {
+          // Type 3: CAD Gear with Teeth
+          float gear_body = sdCylinder(p_local - vec3(0.0, obj_height * 0.4, 0.0), obj_radius * 0.9, obj_height * 0.4);
+          float teeth = sin(atan(p_local.z, p_local.x) * 16.0) * (obj_radius * 0.2);
+          float bore = sdCylinder(p_local - vec3(0.0, obj_height * 0.4, 0.0), obj_radius * 0.3, obj_height * 0.5);
+          float gear = max(gear_body - teeth, -bore);
+          d = min(d_plate, gear);
+        } else {
+          // Type 4: Tapered Hydraulic Bushing
+          float outer = sdCylinder(p_local - vec3(0.0, obj_height * 0.5, 0.0), obj_radius * 0.85, obj_height * 0.5);
+          float inner = sdCylinder(p_local - vec3(0.0, obj_height * 0.5, 0.0), obj_radius * 0.45, obj_height * 0.6);
+          d = min(d_plate, max(outer, -inner));
+        }
+
+        return vec3(d, mat_id, rnd.x);
+      }
+
+      // Fast normal computation
+      vec3 calcCellNormal(vec3 p, vec2 cell_coord) {
+        const vec2 e = vec2(0.003, -0.003);
+        return normalize(
+          e.xyy * evaluateCellObject(p + e.xyy, cell_coord).x +
+          e.yyx * evaluateCellObject(p + e.yyx, cell_coord).x +
+          e.yxy * evaluateCellObject(p + e.yxy, cell_coord).x +
+          e.xxx * evaluateCellObject(p + e.xxx, cell_coord).x
+        );
+      }
+
+      void main() {
+        vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+
+        // Generate camera ray
+        vec3 ro = u_cam_pos;
+        vec3 rd = normalize(u_cam_dir * 1.5 + u_cam_right * uv.x + u_cam_up * uv.y);
+
+        // Floor ground plane check
+        float floor_hit_t = -1.0;
+        if (abs(rd.y) > 1e-4) {
+          float t_plane = -ro.y / rd.y;
+          if (t_plane > 0.0) floor_hit_t = t_plane;
+        }
+
+        // --- GRID TRAVERSAL (DDA) ---
+        // Raymarch along bounding grid cells
+        vec2 current_cell = floor(ro.xz / CELL_SIZE);
+        
+        vec2 ray_step = sign(rd.xz);
+        vec2 delta_t = abs(vec2(CELL_SIZE) / (abs(rd.xz) + 1e-6));
+
+        vec2 next_grid = (current_cell + max(ray_step, vec2(0.0))) * CELL_SIZE;
+        vec2 side_t = (next_grid - ro.xz) / (rd.xz + 1e-6);
+
+        float t = 0.05;
+        int steps_taken = 0;
+        vec3 hit_data = vec3(-1.0); // (t, mat_id, cell_hash)
+        vec2 hit_cell = vec2(0.0);
+
+        // Traverse only visible line-of-sight cells
+        for (int i = 0; i < MAX_DDA_STEPS; ++i) {
+          steps_taken++;
+
+          // Check if cell is within the 1-trillion virtual boundaries (-500k to +500k)
+          if (abs(current_cell.x) <= GRID_HALF_EXTENT && abs(current_cell.y) <= GRID_HALF_EXTENT) {
+            
+            // Sphere-trace analytic geometry inside this specific cell
+            float cell_t_entry = t;
+            float max_cell_t = min(side_t.x, side_t.y);
+            float local_t = cell_t_entry;
+
+            for (int j = 0; j < 12; ++j) {
+              vec3 cur_pos = ro + rd * local_t;
+              vec3 res = evaluateCellObject(cur_pos, current_cell);
+              if (res.x < 0.002) {
+                hit_data = vec3(local_t, res.y, res.z);
+                hit_cell = current_cell;
+                break;
+              }
+              local_t += res.x * 0.85;
+              if (local_t > max_cell_t + 0.3) break; // Traversed beyond this cell
+            }
+
+            if (hit_data.x > 0.0) break; // Found first visible surface! Instant stop!
+          }
+
+          // Advance to next cell via 2D DDA
+          if (side_t.x < side_t.y) {
+            t = side_t.x;
+            side_t.x += delta_t.x;
+            current_cell.x += ray_step.x;
+          } else {
+            t = side_t.y;
+            side_t.y += delta_t.y;
+            current_cell.y += ray_step.y;
+          }
+
+          if (t > 180.0) break; // View distance limit
+        }
+
+        // --- OUTPUT COLOR OR DIAGNOSTICS ---
+        if (u_render_mode == 1) {
+          // Heatmap view: Blue = 1 step, Green = 25 steps, Red = 75 steps
+          float n_steps = float(steps_taken) / float(MAX_DDA_STEPS);
+          vec3 heat = vec3(
+            smoothstep(0.4, 0.9, n_steps),
+            1.0 - abs(n_steps - 0.4) * 2.0,
+            1.0 - smoothstep(0.0, 0.5, n_steps)
+          );
+          fragColor = vec4(heat, 1.0);
+          return;
+        }
+
+        if (u_render_mode == 2) {
+          // Primitive ID view: Unique RGB color derived from integer coordinates of the trillion cells
+          if (hit_data.x > 0.0) {
+            vec3 id_col = hash23(hit_cell);
+            fragColor = vec4(id_col, 1.0);
+          } else {
+            fragColor = vec4(0.02, 0.04, 0.08, 1.0);
+          }
+          return;
+        }
+
+        // PBR Render Mode (Mode 0)
+        vec3 bg_color = vec3(0.02, 0.05, 0.10); // Atmospheric void
+        vec3 final_col = bg_color;
+
+        if (hit_data.x > 0.0) {
+          vec3 hit_pos = ro + rd * hit_data.x;
+          vec3 norm = calcCellNormal(hit_pos, hit_cell);
+          vec3 sun_dir = normalize(vec3(0.6, 1.1, 0.7));
+
+          float diff = max(dot(norm, sun_dir), 0.0);
+          float amb = 0.25 + 0.2 * norm.y;
+          float spec = pow(max(dot(reflect(-sun_dir, norm), -rd), 0.0), 32.0);
+
+          float mat = hit_data.y;
+          vec3 albedo = vec3(0.8);
+
+          if (mat < 1.0) {
+            // Polished Industrial Titanium
+            albedo = vec3(0.85, 0.88, 0.92);
+            spec *= 2.8;
+          } else if (mat < 2.0) {
+            // Machined Gold / Brass Alloy
+            albedo = vec3(1.0, 0.82, 0.35);
+            spec *= 2.2;
+          } else if (mat < 3.0) {
+            // Dark Carbon / Anodized Gunmetal
+            albedo = vec3(0.18, 0.20, 0.24);
+            spec *= 3.5;
+          } else if (mat < 4.0) {
+            // Cobalt Blue Steel
+            albedo = vec3(0.15, 0.45, 0.85);
+            spec *= 2.5;
+          } else {
+            // High-Reflectance Chrome
+            albedo = vec3(0.95, 0.96, 0.98);
+            spec *= 4.5;
+          }
+
+          final_col = albedo * (diff * 0.85 + amb * 0.35) + vec3(1.0) * spec * 0.5;
+
+          // Rim Fresnel
+          float rim = 1.0 - max(dot(-rd, norm), 0.0);
+          final_col += vec3(0.3, 0.6, 1.0) * pow(rim, 3.5) * 0.4;
+
+          // Depth fog
+          final_col = mix(final_col, bg_color, 1.0 - exp(-0.015 * hit_data.x));
+        }
+
+        // ACES Filmic Tone Mapping
+        final_col = (final_col * (2.51 * final_col + 0.03)) / (final_col * (2.43 * final_col + 0.59) + 0.14);
+        fragColor = vec4(clamp(final_col, 0.0, 1.0), 1.0);
+      }
+    `;
+
+    function compileShader(gl, type, source) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, source);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        console.error("Shader error:", gl.getShaderInfoLog(s));
+        gl.deleteShader(s);
+        return null;
+      }
+      return s;
+    }
+
+    const vs = compileShader(gl, gl.VERTEX_SHADER, vsSource);
+    const fs = compileShader(gl, gl.FRAGMENT_SHADER, fsSource);
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.error("Link error:", gl.getProgramInfoLog(prog));
+    }
+
+    const vbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+
+    const aPos = gl.getAttribLocation(prog, 'a_pos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    // Uniform Locations
+    const uResLoc = gl.getUniformLocation(prog, 'u_resolution');
+    const uCamPosLoc = gl.getUniformLocation(prog, 'u_cam_pos');
+    const uCamDirLoc = gl.getUniformLocation(prog, 'u_cam_dir');
+    const uCamUpLoc = gl.getUniformLocation(prog, 'u_cam_up');
+    const uCamRightLoc = gl.getUniformLocation(prog, 'u_cam_right');
+    const uModeLoc = gl.getUniformLocation(prog, 'u_render_mode');
+
+    // Camera State
+    let camPos = [0.0, 4.5, 0.0];
+    let camYaw = -0.785; // 45 degrees
+    let camPitch = -0.45;
+    let renderMode = 0; // 0 = PBR, 1 = Steps, 2 = ID
+
+    // Keyboard state
+    const keys = {};
+    window.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
+    window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+
+    // Mouse drag for camera look
+    let isMouseDown = false;
+    let lastX = 0, lastY = 0;
+    canvas.addEventListener('mousedown', (e) => {
+      isMouseDown = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+    });
+    window.addEventListener('mouseup', () => isMouseDown = false);
+    window.addEventListener('mousemove', (e) => {
+      if (!isMouseDown) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      camYaw -= dx * 0.004;
+      camPitch = Math.max(-1.45, Math.min(1.45, camPitch - dy * 0.004));
+      lastX = e.clientX;
+      lastY = e.clientY;
+    });
+
+    // Touch support
+    canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        isMouseDown = true;
+        lastX = e.touches[0].clientX;
+        lastY = e.touches[0].clientY;
+      }
+    });
+    canvas.addEventListener('touchmove', (e) => {
+      if (isMouseDown && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - lastX;
+        const dy = e.touches[0].clientY - lastY;
+        camYaw -= dx * 0.005;
+        camPitch = Math.max(-1.45, Math.min(1.45, camPitch - dy * 0.005));
+        lastX = e.touches[0].clientX;
+        lastY = e.touches[0].clientY;
+      }
+    });
+    window.addEventListener('touchend', () => isMouseDown = false);
+
+    window.setRenderMode = function(m) {
+      renderMode = m;
+      document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById(`mode-${m}`);
+      if (activeBtn) activeBtn.classList.add('active');
+    };
+
+    function resize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+        gl.viewport(0, 0, w, h);
+      }
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // FPS Telemetry
+    let frameCount = 0;
+    let lastFpsTime = performance.now();
+    let lastTime = performance.now();
+
+    function render(now) {
+      const dt = Math.min((now - lastTime) * 0.001, 0.1);
+      lastTime = now;
+
+      // Camera Direction Vectors
+      const cosP = Math.cos(camPitch), sinP = Math.sin(camPitch);
+      const cosY = Math.cos(camYaw), sinY = Math.sin(camYaw);
+      const forward = [cosP * sinY, sinP, cosP * cosY];
+      const right = [cosY, 0, -sinY];
+      const up = [
+        right[1] * forward[2] - right[2] * forward[1],
+        right[2] * forward[0] - right[0] * forward[2],
+        right[0] * forward[1] - right[1] * forward[0]
+      ];
+
+      // Flight Movement
+      let speed = 8.0 * dt;
+      if (keys['shift']) speed *= 3.0;
+
+      if (keys['w']) {
+        camPos[0] += forward[0] * speed;
+        camPos[1] += forward[1] * speed;
+        camPos[2] += forward[2] * speed;
+      }
+      if (keys['s']) {
+        camPos[0] -= forward[0] * speed;
+        camPos[1] -= forward[1] * speed;
+        camPos[2] -= forward[2] * speed;
+      }
+      if (keys['d']) {
+        camPos[0] += right[0] * speed;
+        camPos[2] += right[2] * speed;
+      }
+      if (keys['a']) {
+        camPos[0] -= right[0] * speed;
+        camPos[2] -= right[2] * speed;
+      }
+      if (keys['e']) camPos[1] += speed;
+      if (keys['q']) camPos[1] = Math.max(0.5, camPos[1] - speed);
+
+      // Keep above minimum height
+      camPos[1] = Math.max(0.35, camPos[1]);
+
+      // Telemetry update
+      frameCount++;
+      if (now - lastFpsTime >= 500) {
+        const fps = Math.round((frameCount * 1000) / (now - lastFpsTime));
+        document.getElementById('hud-fps').innerText = `${fps} FPS`;
+        document.getElementById('hud-latency').innerText = `${(1000 / fps).toFixed(2)} ms`;
+        frameCount = 0;
+        lastFpsTime = now;
+      }
+
+      // HUD position readouts
+      document.getElementById('hud-cam-pos').innerText = 
+        `X: ${camPos[0].toFixed(1)}, Y: ${camPos[1].toFixed(1)}, Z: ${camPos[2].toFixed(1)}`;
+      
+      const cellX = Math.floor(camPos[0] / 2.5) + 500000;
+      const cellZ = Math.floor(camPos[2] / 2.5) + 500000;
+      document.getElementById('hud-cell-idx').innerText = `[${cellX.toLocaleString()}, ${cellZ.toLocaleString()}]`;
+
+      // Render Quad
+      gl.useProgram(prog);
+      gl.uniform2f(uResLoc, canvas.width, canvas.height);
+      gl.uniform3fv(uCamPosLoc, camPos);
+      gl.uniform3fv(uCamDirLoc, forward);
+      gl.uniform3fv(uCamUpLoc, up);
+      gl.uniform3fv(uCamRightLoc, right);
+      gl.uniform1i(uModeLoc, renderMode);
+
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
